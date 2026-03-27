@@ -84,12 +84,13 @@ impl StellarNetwork {
         }
     }
 
-    /// Validate the custom network name against DNS-label rules.
+    /// Validate the custom network name against DNS-1123 label rules.
     ///
     /// Rules (applied only to `Custom` variants):
     /// - Must not be empty (minLength: 1)
     /// - Must not exceed 63 characters (maxLength: 63)
-    /// - Must match `^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$` or be a single alphanumeric char
+    /// - Must match `^[a-z0-9]([-a-z0-9]*[a-z0-9])?$` (lowercase alphanumeric and hyphens,
+    ///   no leading/trailing hyphens)
     pub fn validate_custom_name(&self) -> Result<(), String> {
         let name = match self {
             StellarNetwork::Custom(n) => n,
@@ -104,12 +105,12 @@ impl StellarNetwork {
                 name
             ));
         }
-        let valid = name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
-            && name.starts_with(|c: char| c.is_ascii_alphanumeric())
-            && name.ends_with(|c: char| c.is_ascii_alphanumeric());
+        let valid = name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+            && name.starts_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit())
+            && name.ends_with(|c: char| c.is_ascii_lowercase() || c.is_ascii_digit());
         if !valid {
             return Err(format!(
-                "customName '{}' is invalid: must match ^[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]$ (alphanumeric and hyphens only, no leading/trailing hyphens)",
+                "customName '{}' is invalid: must match ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$ (lowercase alphanumeric and hyphens only, no leading/trailing hyphens)",
                 name
             ));
         }

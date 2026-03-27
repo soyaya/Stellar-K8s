@@ -271,7 +271,7 @@ impl StellarNodeSpec {
             errors.push(SpecValidationError::new(
                 "spec.network.customName",
                 msg,
-                "Use only alphanumeric characters and hyphens, 1–63 characters, no leading/trailing hyphens. Example: \"my-private-net\".",
+                "Use only lowercase alphanumeric characters and hyphens, 1–63 characters, no leading/trailing hyphens (DNS-1123). Example: \"my-private-net\".",
             ));
         }
 

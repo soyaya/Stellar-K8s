@@ -750,7 +750,7 @@ mod stellar_node_spec_validation {
     #[test]
     fn test_validator_custom_network_passes() {
         let mut spec = valid_validator_spec();
-        spec.network = StellarNetwork::Custom("My Private Network".to_string());
+        spec.network = StellarNetwork::Custom("my-private-network".to_string());
         assert!(spec.validate().is_ok());
     }
 
@@ -855,6 +855,27 @@ mod stellar_node_spec_validation {
             let mut spec = valid_validator_spec();
             spec.network = network;
             assert!(spec.validate().is_ok());
+        }
+    }
+
+    #[test]
+    fn test_custom_network_uppercase_fails() {
+        // DNS-1123 requires lowercase; uppercase must be rejected
+        for bad in &["MyNetwork", "My-Net", "MYNET"] {
+            let mut spec = valid_validator_spec();
+            spec.network = StellarNetwork::Custom(bad.to_string());
+            let result = spec.validate();
+            assert!(
+                result.is_err(),
+                "Expected validation failure for uppercase customName: '{bad}'"
+            );
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|e| e.field == "spec.network.customName"),
+                "Expected spec.network.customName error for '{bad}'"
+            );
         }
     }
 
