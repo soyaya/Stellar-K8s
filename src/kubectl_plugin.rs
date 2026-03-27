@@ -74,6 +74,17 @@ enum Commands {
         #[arg(short = 'A', long)]
         all_namespaces: bool,
     },
+    /// Stream Kubernetes events related to StellarNode resources
+    Events {
+        /// Name of a specific StellarNode (optional)
+        node_name: Option<String>,
+        /// Show all namespaces
+        #[arg(short = 'A', long)]
+        all_namespaces: bool,
+        /// Follow event updates in real time
+        #[arg(short, long)]
+        watch: bool,
+    },
     /// Alias for status command
     #[command(name = "sync-status")]
     SyncStatus {
@@ -188,6 +199,16 @@ async fn run(cli: Cli) -> Result<()> {
             )
             .await
         }
+        Commands::Events {
+            node_name,
+            all_namespaces,
+            watch,
+        } => events(
+            node_name.as_deref(),
+            all_namespaces,
+            cli.namespace.as_deref(),
+            watch,
+        ),
         Commands::SyncStatus {
             node_name,
             all_namespaces,
@@ -224,6 +245,51 @@ async fn run(cli: Cli) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn build_events_field_selector(node_name: Option<&str>) -> String {
+    let mut selectors = vec!["involvedObject.kind=StellarNode".to_string()];
+    if let Some(name) = node_name {
+        selectors.push(format!("involvedObject.name={name}"));
+    }
+    selectors.join(",")
+}
+
+fn events(
+    node_name: Option<&str>,
+    all_namespaces: bool,
+    namespace: Option<&str>,
+    watch: bool,
+) -> Result<()> {
+    let field_selector = build_events_field_selector(node_name);
+    let mut cmd = std::process::Command::new("kubectl");
+    cmd.arg("get").arg("events");
+
+    if all_namespaces {
+        cmd.arg("-A");
+    } else {
+        cmd.arg("-n").arg(namespace.unwrap_or("default"));
+    }
+
+    cmd.arg("--field-selector").arg(field_selector);
+    cmd.arg("-o").arg("wide");
+
+    if watch {
+        cmd.arg("--watch");
+    }
+
+    let status = cmd
+        .status()
+        .map_err(|e| Error::ConfigError(format!("Failed to execute kubectl get events: {e}")))?;
+
+    if !status.success() {
+        return Err(Error::ConfigError(format!(
+            "kubectl get events failed with exit code: {:?}",
+            status.code()
+        )));
+    }
+
+    Ok(())
 }
 
 /// Helper function to format nodes as JSON
@@ -831,5 +897,20 @@ mod tests {
                 "Failed for all_namespaces={all_namespaces:?}, node_name={node_name:?}, namespace={namespace:?}"
             );
         }
+    }
+
+    #[test]
+    fn test_build_events_field_selector_all_nodes() {
+        let selector = build_events_field_selector(None);
+        assert_eq!(selector, "involvedObject.kind=StellarNode");
+    }
+
+    #[test]
+    fn test_build_events_field_selector_specific_node() {
+        let selector = build_events_field_selector(Some("validator-a"));
+        assert_eq!(
+            selector,
+            "involvedObject.kind=StellarNode,involvedObject.name=validator-a"
+        );
     }
 }

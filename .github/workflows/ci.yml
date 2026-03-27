@@ -14,6 +14,47 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  version-consistency:
+    name: Version Consistency Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Verify Cargo.toml and stellar-operator version output
+        run: |
+          set -euo pipefail
+
+          CARGO_VERSION=$(grep '^version = ' Cargo.toml | head -1 | cut -d'"' -f2)
+
+          EXPECTED_VERSION="${EXPECTED_RELEASE_VERSION:-}"
+          if [[ -z "$EXPECTED_VERSION" && "${GITHUB_REF:-}" =~ ^refs/tags/v ]]; then
+            EXPECTED_VERSION="${GITHUB_REF#refs/tags/v}"
+          fi
+          if [[ -z "$EXPECTED_VERSION" ]]; then
+            EXPECTED_VERSION="$CARGO_VERSION"
+          fi
+
+          cargo build --locked --bin stellar-operator
+
+          BIN_VERSION=$(./target/debug/stellar-operator version | sed -n 's/^Stellar-K8s Operator v//p' | head -1)
+
+          echo "Expected version: $EXPECTED_VERSION"
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "stellar-operator version output: $BIN_VERSION"
+
+          [[ "$CARGO_VERSION" == "$EXPECTED_VERSION" ]] || {
+            echo "::error::Cargo.toml version ($CARGO_VERSION) does not match expected release version ($EXPECTED_VERSION)"
+            exit 1
+          }
+
+          [[ "$BIN_VERSION" == "$EXPECTED_VERSION" ]] || {
+            echo "::error::stellar-operator version output ($BIN_VERSION) does not match expected release version ($EXPECTED_VERSION)"
+            exit 1
+          }
+
   helm-lint:
     name: Helm Lint & Schema Validation
     runs-on: ubuntu-latest
@@ -117,7 +158,7 @@ jobs:
   test:
     name: Test
     runs-on: ubuntu-latest
-    needs: [security-audit, lint]
+    needs: [security-audit, lint, version-consistency]
     steps:
       - uses: actions/checkout@v4
 

@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use chrono::Utc;
 use clap::{Parser, Subcommand};
+use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
 use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
@@ -28,6 +29,7 @@ use tracing_subscriber::{fmt, prelude::*, EnvFilter};
         stellar-operator run --dump-config\n  \
         stellar-operator webhook --bind 0.0.0.0:8443 --cert-path /tls/tls.crt --key-path /tls/tls.key\n  \
         stellar-operator info --namespace stellar-system\n  \
+        stellar-operator check-crd\n  \
         stellar-operator version"
 )]
 struct Args {
@@ -45,6 +47,8 @@ enum Commands {
     Version,
     /// Show cluster information (node count) for a namespace
     Info(InfoArgs),
+    /// Verify StellarNode CRD installation and expected version
+    CheckCrd,
     /// Local simulator (kind/k3s + operator + demo validators)
     Simulator(SimulatorCli),
     /// Generate shell completion scripts
@@ -283,6 +287,9 @@ async fn main() -> Result<(), Error> {
         Commands::Info(info_args) => {
             return run_info(info_args).await;
         }
+        Commands::CheckCrd => {
+            return run_check_crd().await;
+        }
         Commands::Run(run_args) => {
             if let Err(e) = run_args.validate() {
                 eprintln!("error: {e}");
@@ -311,6 +318,57 @@ async fn run_simulator(cli: SimulatorCli) -> Result<(), Error> {
     match cli.command {
         SimulatorCmd::Up(args) => simulator_up(args).await,
     }
+}
+
+async fn run_check_crd() -> Result<(), Error> {
+    const EXPECTED_VERSION: &str = "v1alpha1";
+    const CRD_NAME: &str = "stellarnodes.stellar.org";
+
+    let client = kube::Client::try_default()
+        .await
+        .map_err(Error::KubeError)?;
+    let crds: Api<CustomResourceDefinition> = Api::all(client);
+
+    let crd = match crds.get(CRD_NAME).await {
+        Ok(crd) => crd,
+        Err(kube::Error::Api(e)) if e.code == 404 => {
+            return Err(Error::ConfigError(format!(
+                "StellarNode CRD '{}' is not installed. Install with: kubectl apply -f config/crd/stellarnode-crd.yaml",
+                CRD_NAME
+            )));
+        }
+        Err(e) => return Err(Error::KubeError(e)),
+    };
+
+    let versions = crd.spec.versions;
+    let installed_versions = versions
+        .iter()
+        .filter(|v| v.served)
+        .map(|v| v.name.clone())
+        .collect::<Vec<_>>();
+
+    let expected_present = versions
+        .iter()
+        .any(|v| v.name == EXPECTED_VERSION && v.served);
+
+    if !expected_present {
+        return Err(Error::ConfigError(format!(
+            "CRD '{}' is installed but expected served version '{}' is missing. Served versions: {}",
+            CRD_NAME,
+            EXPECTED_VERSION,
+            if installed_versions.is_empty() {
+                "<none>".to_string()
+            } else {
+                installed_versions.join(", ")
+            }
+        )));
+    }
+
+    println!("CRD check passed");
+    println!("CRD: {}", CRD_NAME);
+    println!("Expected version: {}", EXPECTED_VERSION);
+    println!("Served versions: {}", installed_versions.join(", "));
+    Ok(())
 }
 
 async fn simulator_up(args: SimulatorUpArgs) -> Result<(), Error> {
@@ -773,31 +831,7 @@ async fn run_operator(args: RunArgs) -> Result<(), Error> {
             .get(controller::mtls::SERVER_CERT_SECRET_NAME)
             .await
             .map_err(Error::KubeError)?;
-        let data = secret
-            .data
-            .ok_or_else(|| Error::ConfigError("Secret has no data".to_string()))?;
-
-        let cert_pem = data
-            .get("tls.crt")
-            .ok_or_else(|| Error::ConfigError("Missing tls.crt".to_string()))?
-            .0
-            .clone();
-        let key_pem = data
-            .get("tls.key")
-            .ok_or_else(|| Error::ConfigError("Missing tls.key".to_string()))?
-            .0
-            .clone();
-        let ca_pem = data
-            .get("ca.crt")
-            .ok_or_else(|| Error::ConfigError("Missing ca.crt".to_string()))?
-            .0
-            .clone();
-
-        Some(stellar_k8s::MtlsConfig {
-            cert_pem,
-            key_pem,
-            ca_pem,
-        })
+        Some(controller::mtls::load_mtls_config_from_secret(&secret)?)
     } else {
         None
     };
@@ -1350,6 +1384,13 @@ mod cli_tests {
     fn unknown_flag_is_rejected() {
         let result = parse_run(&["--nonexistent-flag"]);
         assert!(result.is_err(), "unknown flags should be rejected by clap");
+    }
+
+    #[test]
+    fn check_crd_subcommand_parses() {
+        let parsed = Args::try_parse_from(["stellar-operator", "check-crd"])
+            .expect("check-crd subcommand should parse");
+        assert!(matches!(parsed.command, Commands::CheckCrd));
     }
 
     // ── simulator args ────────────────────────────────────────────────────────
