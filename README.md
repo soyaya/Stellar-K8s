@@ -141,7 +141,7 @@ See [kubectl-plugin.md](docs/kubectl-plugin.md) for complete documentation.
 Major architectural decisions are documented in our [ADR directory](docs/adr/README.md), including:
 
 - **Choice of Rust** - Rationale for selecting Rust as the programming language
-- **kube-rs Finalizers** - Strategy for resource cleanup and lifecycle management  
+- **kube-rs Finalizers** - Strategy for resource cleanup and lifecycle management
 - **CRD Versioning** - Approach to API evolution and backward compatibility
 
 ### 4. Custom Validation Policies with WebAssembly
@@ -153,12 +153,12 @@ Stellar-K8s supports custom validation policies written in WebAssembly, allowing
 #[no_mangle]
 pub extern "C" fn validate() -> i32 {
     let input = read_validation_input()?;
-    
+
     // Check if image is from approved registry
     if !is_approved_registry(&input.object.spec.version) {
         return deny("Image must be from approved registry");
     }
-    
+
     allow()
 }
 ```
@@ -301,7 +301,7 @@ spec:
   nodeType: Validator
   storage:
     mode: Local
-    # Automatically detects "local-path" or "local-storage" if omitted 
+    # Automatically detects "local-path" or "local-storage" if omitted
     # Or explicitly pin to specific nodes:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -385,7 +385,7 @@ soroban_rpc_host_function_calls_total{namespace, name, network, contract_id}
 
 **Average Wasm execution time (last 5m)**:
 ```promql
-rate(soroban_rpc_wasm_execution_duration_microseconds_sum[5m]) / 
+rate(soroban_rpc_wasm_execution_duration_microseconds_sum[5m]) /
 rate(soroban_rpc_wasm_execution_duration_microseconds_count[5m])
 ```
 
@@ -415,7 +415,7 @@ groups:
           severity: warning
         annotations:
           summary: "High Wasm execution latency (p99 > 100ms)"
-          
+
       - alert: HighTransactionFailureRate
         expr: |
           sum(rate(soroban_rpc_transaction_result_total{result="failed"}[5m])) /
@@ -425,7 +425,7 @@ groups:
           severity: critical
         annotations:
           summary: "Transaction failure rate above 10%"
-          
+
       - alert: HighLedgerIngestionLag
         expr: soroban_rpc_ingest_ledger_lag > 10
         for: 5m
@@ -474,7 +474,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 
 ## 👨‍💻 Maintainer
 
-**Otowo Samuel**  
+**Otowo Samuel**
 _DevOps Engineer & Protocol Developer_
 
 Bringing nearly 5 years of DevOps experience and a deep background in blockchain infrastructure tools (core contributor of `starknetnode-kit`). Passionate about building robust, type-safe tooling for the decentralized web.

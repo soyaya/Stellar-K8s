@@ -1,6 +1,6 @@
 # Contributing to Stellar-K8s
 
-First off, thank you for considering contributing to Stellar-K8s! This project aims to provide a robust, cloud-native Kubernetes operator for managing Stellar infrastructure. 
+First off, thank you for considering contributing to Stellar-K8s! This project aims to provide a robust, cloud-native Kubernetes operator for managing Stellar infrastructure.
 
 This document provides a clear guide on how to contribute to the project, covering everything from our developer workflow to commit structures.
 
@@ -47,7 +47,7 @@ Please use descriptive branch names based on the nature of your contribution. We
 
 ## 3. Commit Conventions
 
-We strictly follow [Conventional Commits](https://www.conventionalcommits.org/). This allows us to automate our changelog generation and semantic versioning. 
+We strictly follow [Conventional Commits](https://www.conventionalcommits.org/). This allows us to automate our changelog generation and semantic versioning.
 
 Your commit messages should be formatted as follows:
 ```
