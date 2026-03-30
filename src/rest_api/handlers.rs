@@ -5,10 +5,9 @@ use std::sync::Arc;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    response::IntoResponse,
     Json,
 };
-use chrono::{DateTime, Utc, Duration};
+use chrono::{Duration, Utc};
 use kube::{api::Api, ResourceExt};
 use tracing::{error, instrument};
 
@@ -194,7 +193,7 @@ pub async fn set_log_level(
     }
 
     Ok(Json(LogLevelResponse {
-        current_level: req.level,
+        current_level: req.level.clone(),
         expires_at,
         message: format!("Log level set to {}", req.level),
     }))
@@ -202,9 +201,7 @@ pub async fn set_log_level(
 
 /// Get the current log level and expiration
 #[instrument(skip(state), fields(node_name = "-", namespace = %state.operator_namespace, reconcile_id = "-"))]
-pub async fn get_log_level(
-    State(state): State<Arc<ControllerState>>,
-) -> Json<LogLevelResponse> {
+pub async fn get_log_level(State(state): State<Arc<ControllerState>>) -> Json<LogLevelResponse> {
     let expires_at = *state.log_level_expires_at.lock().await;
 
     // We can't easily get the current level string from the handle without a bit of work,

@@ -57,6 +57,7 @@ mod tests {
             network_policy: None,
             dr_config: None,
             pod_anti_affinity: Default::default(),
+            placement: Default::default(),
             topology_spread_constraints: None,
             cve_handling: None,
             snapshot_schedule: None,
@@ -67,6 +68,7 @@ mod tests {
             oci_snapshot: None,
             service_mesh: None,
             forensic_snapshot: None,
+            label_propagation: None,
             resource_meta: None,
         }
     }
@@ -320,6 +322,8 @@ mod tests {
         let mut node = make_node(NodeType::Validator);
         node.spec.placement.scp_aware_anti_affinity = true;
         node.spec.validator_config = Some(ValidatorConfig {
+            seed_secret_ref: String::new(),
+            seed_secret_source: None,
             quorum_set: Some(
                 r#"
 [VALIDATORS]
@@ -328,7 +332,13 @@ peer-2 = "G..."
 "#
                 .to_string(),
             ),
-            ..Default::default()
+            enable_history_archive: false,
+            history_archive_urls: vec![],
+            catchup_complete: false,
+            key_source: Default::default(),
+            kms_config: None,
+            vl_source: None,
+            hsm_config: None,
         });
 
         let affinity = merge_workload_affinity(&node).expect("affinity should be generated");

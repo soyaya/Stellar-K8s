@@ -12,7 +12,6 @@ use std::time::Duration;
 use tokio::time::sleep;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-use chrono::Utc;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -51,11 +50,11 @@ async fn main() -> Result<()> {
         };
 
         match pods.log_stream(&pod_name, &log_params).await {
-            Ok(mut stream) => {
-                while let Some(line) = stream.next().await {
+            Ok(stream) => {
+                let mut lines = stream.lines();
+                while let Some(line) = lines.next().await {
                     match line {
-                        Ok(bytes) => {
-                            let log_line = String::from_utf8_lossy(&bytes);
+                        Ok(log_line) => {
                             if let Some(recommendation) = analyze_log(&log_line) {
                                 info!(
                                     "Found issue: {}. Recommendation: {}",
@@ -184,7 +183,7 @@ async fn report_recommendation(
     let now = chrono::Utc::now();
     let event = Event {
         metadata: ObjectMeta {
-            generate_name: Some(format!("{}-fix-", pod_name)),
+            generate_name: Some(format!("{pod_name}-fix-")),
             namespace: Some(namespace.to_string()),
             ..ObjectMeta::default()
         },
