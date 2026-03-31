@@ -29,9 +29,6 @@ pub async fn get_search_index() -> axum::response::Response {
         .unwrap()
 }
 
-/// Health endpoint
-#[instrument]
-pub async fn health() -> impl axum::response::IntoResponse {
 /// Health check endpoint
 pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
