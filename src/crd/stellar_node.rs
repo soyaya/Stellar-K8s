@@ -12,10 +12,11 @@ use serde::{Deserialize, Serialize};
 use super::types::{
     AutoscalingConfig, Condition, CrossClusterConfig, DisasterRecoveryConfig,
     DisasterRecoveryStatus, ExternalDatabaseConfig, ForensicSnapshotConfig, GlobalDiscoveryConfig,
-    HistoryMode, HorizonConfig, IngressConfig, LoadBalancerConfig, ManagedDatabaseConfig,
-    NetworkPolicyConfig, NodeType, OciSnapshotConfig, ResourceRequirements,
-    RestoreFromSnapshotConfig, RetentionPolicy, RolloutStrategy, SnapshotScheduleConfig,
-    SorobanConfig, StellarNetwork, StorageConfig, ValidatorConfig, VpaConfig,
+    HistoryMode, HorizonConfig, IngressConfig, LabelPropagationConfig, LoadBalancerConfig,
+    ManagedDatabaseConfig, NetworkPolicyConfig, NodeType, OciSnapshotConfig, PlacementConfig,
+    PodAntiAffinityStrength, ResourceRequirements, RestoreFromSnapshotConfig, RetentionPolicy,
+    RolloutStrategy, SnapshotScheduleConfig, SorobanConfig, StellarNetwork, StorageConfig,
+    ValidatorConfig, VpaConfig,
 };
 
 /// Structured validation error for `StellarNodeSpec`
@@ -58,6 +59,8 @@ impl SpecValidationError {
 pub struct StellarNodeSpec {
     pub node_type: NodeType,
     pub network: StellarNetwork,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_network_passphrase: Option<String>,
     pub version: String,
 
     #[serde(default)]
@@ -86,11 +89,11 @@ pub struct StellarNodeSpec {
     pub replicas: i32,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<serde_json::Value>")]
+    #[schemars(schema_with = "super::schema_utils::int_or_string_schema")]
     pub min_available: Option<IntOrString>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<serde_json::Value>")]
+    #[schemars(schema_with = "super::schema_utils::int_or_string_schema")]
     pub max_unavailable: Option<IntOrString>,
 
     #[serde(default)]
@@ -139,8 +142,17 @@ pub struct StellarNodeSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dr_config: Option<DisasterRecoveryConfig>,
 
+    /// When not `Disabled`, the operator adds default pod anti-affinity so pods with the same
+    /// `stellar-network` label (and same component) are not co-located on one node.
+    #[serde(default)]
+    pub pod_anti_affinity: PodAntiAffinityStrength,
+
+    /// Intelligent pod placement configuration (e.g. SCP-aware anti-affinity)
+    #[serde(default)]
+    pub placement: PlacementConfig,
+
     #[serde(skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "Option<Vec<serde_json::Value>>")]
+    #[schemars(schema_with = "super::schema_utils::array_of_objects_schema")]
     pub topology_spread_constraints:
         Option<Vec<k8s_openapi::api::core::v1::TopologySpreadConstraint>>,
 
@@ -181,6 +193,10 @@ pub struct StellarNodeSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forensic_snapshot: Option<ForensicSnapshotConfig>,
 
+    /// Label propagation filter policy for child resources.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_propagation: Option<LabelPropagationConfig>,
+
     #[schemars(skip)]
     pub resource_meta: Option<ObjectMeta>,
 
@@ -210,6 +226,11 @@ fn default_replicas() -> i32 {
 }
 
 impl StellarNodeSpec {
+    /// Get the network passphrase based on network type and custom string
+    pub fn network_passphrase(&self) -> &str {
+        self.network.passphrase(&self.custom_network_passphrase)
+    }
+
     /// Validate the spec based on node type
     ///
     /// Performs comprehensive validation of the StellarNodeSpec including:
@@ -256,6 +277,7 @@ impl StellarNodeSpec {
     /// # maintenance_mode: false,
     /// # network_policy: None,
     /// # dr_config: None,
+    /// # pod_anti_affinity: Default::default(),
     /// # topology_spread_constraints: None,
     /// # cve_handling: None,
     /// # read_replica_config: None,
@@ -263,6 +285,7 @@ impl StellarNodeSpec {
     /// # oci_snapshot: None,
     /// # service_mesh: None,
     /// # forensic_snapshot: None,
+    /// # label_propagation: None,
     /// # vpa_config: None,
     /// # resource_meta: None,
     /// # read_pool_endpoint: None,
@@ -279,6 +302,15 @@ impl StellarNodeSpec {
     /// ```
     pub fn validate(&self) -> Result<(), Vec<SpecValidationError>> {
         let mut errors: Vec<SpecValidationError> = Vec::new();
+
+        // 0. Custom network name validation
+        if let Err(msg) = self.network.validate_custom_name() {
+            errors.push(SpecValidationError::new(
+                "spec.network.customName",
+                msg,
+                "Use only lowercase alphanumeric characters and hyphens, 1–63 characters, no leading/trailing hyphens (DNS-1123). Example: \"my-private-net\".",
+            ));
+        }
 
         // 1. Database Mutual Exclusion
         if self.database.is_some() && self.managed_database.is_some() {
@@ -362,12 +394,56 @@ impl StellarNodeSpec {
                     ));
                 }
                 // Canary strategy not supported
-                if matches!(self.strategy, RolloutStrategy::Canary(_)) {
+                if self.strategy.canary().is_some() {
                     errors.push(SpecValidationError::new(
                         "spec.strategy",
                         "canary rollout strategy is not supported for Validator nodes",
                         "Use RollingUpdate strategy for Validator nodes; canary is only supported for Horizon and SorobanRpc.",
                     ));
+                }
+
+                // High-security seed handling for HSM-backed validators:
+                // disallow seed sources that materialize the validator seed into Kubernetes Secrets (stored in etcd).
+                if let Some(vc) = &self.validator_config {
+                    if vc.hsm_config.is_some() {
+                        match &vc.seed_secret_source {
+                            Some(src) => {
+                                if let Err(e) = src.validate() {
+                                    errors.push(SpecValidationError::new(
+                                        "spec.validatorConfig.seedSecretSource",
+                                        format!("Invalid seedSecretSource: {e}"),
+                                        "Configure exactly one of localRef, externalRef, csiRef, or vaultRef.",
+                                    ));
+                                } else {
+                                    let uses_k8s_secret =
+                                        src.local_ref.is_some() || src.external_ref.is_some();
+                                    if uses_k8s_secret {
+                                        errors.push(SpecValidationError::new(
+                                            "spec.validatorConfig.seedSecretSource",
+                                            "HSM config requires a seed source that does not materialize seeds into Kubernetes Secrets (etcd).",
+                                            "Use seedSecretSource.csiRef (Secrets Store CSI) or seedSecretSource.vaultRef (Vault Agent Injector). Avoid seedSecretSource.localRef/externalRef.",
+                                        ));
+                                    }
+                                }
+                            }
+                            None => {
+                                // Legacy seedSecretRef is a plain Kubernetes Secret reference.
+                                if !vc.seed_secret_ref.is_empty() {
+                                    errors.push(SpecValidationError::new(
+                                        "spec.validatorConfig.seedSecretRef",
+                                        "HSM config forbids the legacy seedSecretRef (materializes into Kubernetes Secret / etcd).",
+                                        "Switch to spec.validatorConfig.seedSecretSource.csiRef or spec.validatorConfig.seedSecretSource.vaultRef.",
+                                    ));
+                                } else {
+                                    errors.push(SpecValidationError::new(
+                                        "spec.validatorConfig.seedSecretSource",
+                                        "HSM config requires seedSecretSource.csiRef or seedSecretSource.vaultRef.",
+                                        "Configure a non-Kubernetes-Secret seed backend for high-security operation.",
+                                    ));
+                                }
+                            }
+                        }
+                    }
                 }
                 // Snapshot schedule and restore only apply to Validators (ledger data)
                 if (self.snapshot_schedule.is_some() || self.restore_from_snapshot.is_some())
@@ -484,7 +560,12 @@ impl StellarNodeSpec {
             NodeType::Validator => "stellar-core",
             _ => "horizon",
         };
-        format!("stellar/{}:{}", name, self.version)
+        let separator = if self.version.starts_with("sha256:") {
+            "@"
+        } else {
+            ":"
+        };
+        format!("stellar/{}{}{}", name, separator, self.version)
     }
 
     pub fn should_delete_pvc(&self) -> bool {
@@ -952,6 +1033,11 @@ pub struct StellarNodeStatus {
     /// Phase of the last forensic snapshot request (`Pending`, `Capturing`, `Complete`, `Failed`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub forensic_snapshot_phase: Option<String>,
+
+    /// Result of the last label propagation pass.
+    /// One of: "Synced", "Partial", "Failed"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label_propagation_status: Option<String>,
 }
 
 /// BGP advertisement status information
@@ -1152,13 +1238,19 @@ mod tests {
             ingress: None,
             load_balancer: None,
             global_discovery: None,
-            strategy: RolloutStrategy::Canary(CanaryConfig {
-                weight: 10,
-                check_interval_seconds: 300,
-            }),
+            strategy: RolloutStrategy {
+                strategy_type: RolloutStrategyType::Canary,
+                canary: Some(CanaryConfig {
+                    weight: 10,
+                    check_interval_seconds: 300,
+                }),
+            },
+            custom_network_passphrase: None,
             maintenance_mode: false,
             network_policy: None,
             dr_config: None,
+            pod_anti_affinity: Default::default(),
+            placement: Default::default(),
             topology_spread_constraints: None,
             cross_cluster: None,
             cve_handling: None,
@@ -1169,6 +1261,7 @@ mod tests {
             oci_snapshot: None,
             service_mesh: None,
             forensic_snapshot: None,
+            label_propagation: None,
             resource_meta: None,
             vpa_config: None,
             read_pool_endpoint: None,
@@ -1208,13 +1301,19 @@ mod tests {
             ingress: None,
             load_balancer: None,
             global_discovery: None,
-            strategy: RolloutStrategy::Canary(CanaryConfig {
-                weight: 20,
-                check_interval_seconds: 300,
-            }),
+            strategy: RolloutStrategy {
+                strategy_type: RolloutStrategyType::Canary,
+                canary: Some(CanaryConfig {
+                    weight: 20,
+                    check_interval_seconds: 300,
+                }),
+            },
+            custom_network_passphrase: None,
             maintenance_mode: false,
             network_policy: None,
             dr_config: None,
+            pod_anti_affinity: Default::default(),
+            placement: Default::default(),
             topology_spread_constraints: None,
             cross_cluster: None,
             cve_handling: None,
@@ -1225,6 +1324,7 @@ mod tests {
             oci_snapshot: None,
             service_mesh: None,
             forensic_snapshot: None,
+            label_propagation: None,
             resource_meta: None,
             vpa_config: None,
             read_pool_endpoint: None,
@@ -1232,5 +1332,75 @@ mod tests {
         };
 
         assert!(spec.validate().is_ok());
+    }
+
+    #[test]
+    fn test_container_image_formats() {
+        // 1. Standard tag
+        let mut spec = StellarNodeSpec {
+            node_type: NodeType::Validator,
+            network: StellarNetwork::Testnet,
+            version: "v21.0.0".to_string(),
+            history_mode: Default::default(),
+            resources: Default::default(),
+            storage: Default::default(),
+            validator_config: None,
+            horizon_config: None,
+            soroban_config: None,
+            replicas: 1,
+            min_available: None,
+            max_unavailable: None,
+            suspended: false,
+            alerting: false,
+            database: None,
+            managed_database: None,
+            autoscaling: None,
+            vpa_config: None,
+            ingress: None,
+            load_balancer: None,
+            global_discovery: None,
+            cross_cluster: None,
+            strategy: Default::default(),
+            maintenance_mode: false,
+            network_policy: None,
+            dr_config: None,
+            pod_anti_affinity: Default::default(),
+            placement: Default::default(),
+            topology_spread_constraints: None,
+            cve_handling: None,
+            snapshot_schedule: None,
+            restore_from_snapshot: None,
+            read_replica_config: None,
+            db_maintenance_config: None,
+            oci_snapshot: None,
+            service_mesh: None,
+            forensic_snapshot: None,
+            label_propagation: None,
+            resource_meta: None,
+            read_pool_endpoint: None,
+        };
+        assert_eq!(spec.container_image(), "stellar/stellar-core:v21.0.0");
+
+        // 2. Pure digest
+        spec.version =
+            "sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678".to_string();
+        assert_eq!(
+            spec.container_image(),
+            "stellar/stellar-core@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+        );
+
+        // 3. Tag with digest
+        spec.version =
+            "v21.0.0@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+                .to_string();
+        assert_eq!(
+            spec.container_image(),
+            "stellar/stellar-core:v21.0.0@sha256:abcdef1234567890abcdef1234567890abcdef1234567890abcdef12345678"
+        );
+
+        // 4. Horizon node
+        spec.node_type = NodeType::Horizon;
+        spec.version = "v2.10.0".to_string();
+        assert_eq!(spec.container_image(), "stellar/horizon:v2.10.0");
     }
 }
