@@ -422,6 +422,7 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             reconcile_id_counter: std::sync::atomic::AtomicU64::new(0),
             last_reconcile_success: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             log_level_expires_at: Arc::new(tokio::sync::Mutex::new(None)),
+            log_reload_handle: make_reload_handle(),
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         });
 

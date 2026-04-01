@@ -759,7 +759,7 @@ mod tests {
             "metadata": { "name": "my-validator", "namespace": "default" },
             "spec": {
                 "nodeType": "Validator",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0",
                 "replicas": 1,
                 "validatorConfig": {
@@ -789,7 +789,7 @@ mod tests {
             "metadata": { "name": "bad", "namespace": "default" },
             "spec": {
                 "nodeType": "InvalidType",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0"
             }
         });
@@ -817,7 +817,7 @@ mod tests {
             "metadata": { "name": "no-config", "namespace": "default" },
             "spec": {
                 "nodeType": "Validator",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0",
                 "replicas": 1
             }
@@ -850,7 +850,7 @@ mod tests {
             "metadata": { "name": "my-validator", "namespace": "default" },
             "spec": {
                 "nodeType": "Validator",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0",
                 "replicas": 1,
                 "validatorConfig": {
@@ -913,7 +913,7 @@ mod tests {
             "metadata": { "name": "test", "namespace": "default" },
             "spec": {
                 "nodeType": "Validator",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0",
                 "replicas": 1,
                 "validatorConfig": {
@@ -989,7 +989,7 @@ mod tests {
             "metadata": { "name": "test", "namespace": "default" },
             "spec": {
                 "nodeType": "Validator",
-                "network": "Testnet",
+                "network": "testnet",
                 "version": "v21.0.0",
                 "replicas": 1,
                 "validatorConfig": {
