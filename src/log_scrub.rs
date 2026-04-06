@@ -58,9 +58,7 @@ fn patterns() -> &'static [(&'static str, Regex)] {
             // Stellar seed: 'S' followed by 55 base58 characters (56 total)
             (
                 "stellar_seed",
-                Regex::new(
-                    r"\bS[123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz]{55}\b",
-                )
+                Regex::new(r"S[A-Za-z0-9]{54}")
                 .expect("stellar_seed regex"),
             ),
             // PEM private key block (single-line or multi-line collapsed)
@@ -84,9 +82,7 @@ fn patterns() -> &'static [(&'static str, Regex)] {
                 // and other long plain alphanumeric identifiers.
                 (
                     "base64_segment",
-                    Regex::new(
-                        r"(?:[A-Za-z0-9+/]{20,}[+/][A-Za-z0-9+/]{19,}={0,2}|[A-Za-z0-9+/]{40,}={1,2})",
-                    )
+                    Regex::new(r"[A-Za-z0-9+/]{20,}={1,2}")
                     .expect("base64_segment regex"),
                 ),
             // Hex strings ≥ 64 chars (SHA-256 or larger hashes of key material)
