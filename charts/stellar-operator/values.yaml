@@ -145,6 +145,14 @@ defaultResources:
       cpu: "4"
       memory: "8Gi"
 
+featureFlags:
+  enableCveScanning: "false"
+  enableReadPool: "false"
+  enableDr: "false"
+  enablePeerDiscovery: "false"
+  enableArchiveHealth: "false"
+  enableSorobanMetrics: "false"
+
 security:
   audit:
     enabled: true
