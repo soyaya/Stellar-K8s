@@ -18,6 +18,8 @@ NODE_COUNT=100
 TEST_NAMESPACE="${TEST_NAMESPACE:-soak-test}"
 RESULTS_FILE="${RESULTS_FILE:-/tmp/soak-memory.log}"
 CLEANUP_DONE=false
+CLEANUP_TIMEOUT_SECONDS="${CLEANUP_TIMEOUT_SECONDS:-120}"
+RETRY_DELAY_SECONDS="${RETRY_DELAY_SECONDS:-15}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,36 @@ get_operator_pid() {
   kubectl get pods -n "$OPERATOR_NAMESPACE" \
     -l app=stellar-operator \
     -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+}
+
+validate_positive_integer() {
+  local name="$1"
+  local value="$2"
+  if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: ${name} must be an integer, got '${value}'"
+    exit 1
+  fi
+  if [[ "$value" -lt 1 ]]; then
+    echo "ERROR: ${name} must be >= 1, got '${value}'"
+    exit 1
+  fi
+}
+
+get_operator_pid_with_retry() {
+  local max_attempts="${1:-5}"
+  local attempt=1
+  local pod_name=""
+  while [[ "$attempt" -le "$max_attempts" ]]; do
+    pod_name=$(get_operator_pid)
+    if [[ -n "$pod_name" ]]; then
+      echo "$pod_name"
+      return 0
+    fi
+    echo "Operator pod not found (attempt ${attempt}/${max_attempts}); retrying in ${RETRY_DELAY_SECONDS}s..."
+    sleep "$RETRY_DELAY_SECONDS"
+    attempt=$(( attempt + 1 ))
+  done
+  return 1
 }
 
 get_rss_kb() {
@@ -59,12 +91,21 @@ delete_nodes() {
     kubectl delete stellarnode "soak-node-${i}" -n "$TEST_NAMESPACE" \
       --ignore-not-found --wait=false
   done
-  # Wait for all to be gone before the next wave
-  kubectl wait stellarnode \
+  # Wait for all to be gone before the next wave.
+  if kubectl wait stellarnode \
     --for=delete \
     --all \
     -n "$TEST_NAMESPACE" \
-    --timeout=120s 2>/dev/null || true
+    --timeout="${CLEANUP_TIMEOUT_SECONDS}s" 2>/dev/null; then
+    echo "Cleanup finished within ${CLEANUP_TIMEOUT_SECONDS}s"
+    return 0
+  fi
+
+  local remaining
+  remaining=$(kubectl get stellarnode -n "$TEST_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  echo "WARN: Cleanup timeout reached after ${CLEANUP_TIMEOUT_SECONDS}s with ${remaining} resource(s) still present."
+  echo "Aborting soak loop because it is unsafe to proceed with leftover resources."
+  return 1
 }
 
 cleanup_resources() {
@@ -111,12 +152,16 @@ trap 'handle_exit' EXIT
 
 kubectl create namespace "$TEST_NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
 
-OPERATOR_POD=$(get_operator_pid)
+validate_positive_integer "RETRY_DELAY_SECONDS" "$RETRY_DELAY_SECONDS"
+echo "Retry delay: ${RETRY_DELAY_SECONDS}s"
+
+OPERATOR_POD=$(get_operator_pid_with_retry 5)
 if [[ -z "$OPERATOR_POD" ]]; then
   echo "ERROR: No stellar-operator pod found in namespace $OPERATOR_NAMESPACE"
   exit 1
 fi
 echo "Operator pod: $OPERATOR_POD"
+echo "Cleanup timeout: ${CLEANUP_TIMEOUT_SECONDS}s"
 
 # Baseline — let the operator settle for one sample interval first
 sleep "$SAMPLE_INTERVAL"
@@ -140,7 +185,7 @@ while [[ $ELAPSED -lt $SOAK_DURATION ]]; do
   delete_nodes
 
   # Sample memory after each wave (and on the fixed interval)
-  OPERATOR_POD=$(get_operator_pid)
+  OPERATOR_POD=$(get_operator_pid_with_retry 5)
   CURRENT_KB=$(get_rss_kb "$OPERATOR_POD")
   GROWTH_KB=$(( CURRENT_KB - BASELINE_KB ))
   NOW=$(date +%s)
