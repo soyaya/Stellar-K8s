@@ -17,6 +17,8 @@ THRESHOLD_KB=5120                         # 5 MB growth limit
 NODE_COUNT=100
 TEST_NAMESPACE="${TEST_NAMESPACE:-soak-test}"
 RESULTS_FILE="${RESULTS_FILE:-/tmp/soak-memory.log}"
+CLEANUP_DONE=false
+CLEANUP_TIMEOUT_SECONDS="${CLEANUP_TIMEOUT_SECONDS:-120}"
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -58,13 +60,62 @@ delete_nodes() {
     kubectl delete stellarnode "soak-node-${i}" -n "$TEST_NAMESPACE" \
       --ignore-not-found --wait=false
   done
-  # Wait for all to be gone before the next wave
-  kubectl wait stellarnode \
+  # Wait for all to be gone before the next wave.
+  if kubectl wait stellarnode \
     --for=delete \
     --all \
     -n "$TEST_NAMESPACE" \
-    --timeout=120s 2>/dev/null || true
+    --timeout="${CLEANUP_TIMEOUT_SECONDS}s" 2>/dev/null; then
+    echo "Cleanup finished within ${CLEANUP_TIMEOUT_SECONDS}s"
+    return 0
+  fi
+
+  local remaining
+  remaining=$(kubectl get stellarnode -n "$TEST_NAMESPACE" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+  echo "WARN: Cleanup timeout reached after ${CLEANUP_TIMEOUT_SECONDS}s with ${remaining} resource(s) still present."
+  echo "Aborting soak loop because it is unsafe to proceed with leftover resources."
+  return 1
 }
+
+cleanup_resources() {
+  local reason="${1:-exit}"
+  if [[ "$CLEANUP_DONE" == "true" ]]; then
+    echo "[cleanup] Already completed (reason: ${reason})"
+    return
+  fi
+  CLEANUP_DONE=true
+
+  echo "[cleanup] Starting cleanup (reason: ${reason})..."
+  delete_nodes || true
+  kubectl delete namespace "$TEST_NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+  echo "[cleanup] Cleanup finished for namespace: ${TEST_NAMESPACE}"
+}
+
+handle_exit() {
+  local exit_code=$?
+  cleanup_resources "exit"
+  if [[ $exit_code -ne 0 ]]; then
+    echo "[cleanup] Exiting with failure code: ${exit_code}"
+  else
+    echo "[cleanup] Exiting successfully"
+  fi
+  exit "$exit_code"
+}
+
+handle_signal() {
+  local signal_name="$1"
+  local signal_code=1
+  case "$signal_name" in
+    INT) signal_code=130 ;;
+    TERM) signal_code=143 ;;
+  esac
+  echo "[cleanup] Received ${signal_name}; requesting graceful shutdown..."
+  exit "$signal_code"
+}
+
+trap 'handle_signal INT' INT
+trap 'handle_signal TERM' TERM
+trap 'handle_exit' EXIT
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -76,6 +127,7 @@ if [[ -z "$OPERATOR_POD" ]]; then
   exit 1
 fi
 echo "Operator pod: $OPERATOR_POD"
+echo "Cleanup timeout: ${CLEANUP_TIMEOUT_SECONDS}s"
 
 # Baseline — let the operator settle for one sample interval first
 sleep "$SAMPLE_INTERVAL"
