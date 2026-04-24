@@ -111,6 +111,10 @@ pub struct ControllerState {
         std::sync::Arc<tokio::sync::Mutex<Option<chrono::DateTime<chrono::Utc>>>>,
     /// Timestamp of the last event received from the K8s watch stream
     pub last_event_received: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Optional OIDC configuration for JWT-based authentication on the REST API.
+    /// When `Some`, the OIDC middleware is active; when `None`, the operator falls
+    /// back to Kubernetes RBAC token validation.
+    pub oidc_config: Option<crate::rest_api::OidcConfig>,
 }
 
 impl ControllerState {
@@ -169,6 +173,7 @@ impl ControllerState {
 ///         log_reload_handle: reload_handle,
 ///         log_level_expires_at: Arc::new(tokio::sync::Mutex::new(None)),
 ///         last_event_received: Arc::new(AtomicU64::new(0)),
+///         oidc_config: None,
 ///     });
 ///     run_controller(state).await?;
 ///     Ok(())
@@ -600,7 +605,10 @@ pub(crate) async fn apply_stellar_node(
     // Ensures no Mainnet node shares a namespace with a Testnet node (or vice versa).
     if let Err(e) = super::network_isolation::check_network_safety(client, node).await {
         let msg = e.to_string();
-        warn!("Network safety check failed for {}/{}: {}", namespace, name, msg);
+        warn!(
+            "Network safety check failed for {}/{}: {}",
+            namespace, name, msg
+        );
         emit_event(
             client,
             &ctx.event_reporter,

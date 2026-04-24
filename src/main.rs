@@ -1105,6 +1105,7 @@ async fn run_operator(args: RunArgs) -> Result<(), Error> {
 
     // Create shared controller state
     let operator_config = stellar_k8s::controller::OperatorConfig::load();
+    let oidc_config = operator_config.oidc.clone();
     let state = Arc::new(controller::ControllerState {
         client: client.clone(),
         enable_mtls: args.enable_mtls,
@@ -1123,6 +1124,7 @@ async fn run_operator(args: RunArgs) -> Result<(), Error> {
         log_reload_handle: reload_handle,
         log_level_expires_at: Arc::new(tokio::sync::Mutex::new(None)),
         last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+        oidc_config,
     });
 
     // Start the peer discovery manager

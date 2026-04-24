@@ -103,6 +103,8 @@ pub async fn run_server(
                 .post(handlers::set_log_level)
                 .route_layer(middleware::from_fn_with_state(state.clone(), auth::k8s_rbac_auth)),
         )
+        // Compliance report (OIDC-protected when OIDC is configured)
+        .route("/api/v1/compliance/report", get(handlers::compliance_report))
         // Dashboard routes
         .route("/", get(dashboard_ui))
         .route("/api/v1/dashboard/overview", get(dashboard_handlers::dashboard_overview))

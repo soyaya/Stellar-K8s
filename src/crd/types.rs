@@ -692,6 +692,15 @@ pub struct AutoscalingConfig {
     pub custom_metrics: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub behavior: Option<ScalingBehavior>,
+    /// Predictive scaling configuration.
+    ///
+    /// When enabled, the operator uses a Holt-Winters forecasting model to
+    /// predict the next hour's ledger volume and pre-emptively adjusts
+    /// `minReplicas` before traffic spikes occur.
+    ///
+    /// Only applicable to `Horizon` nodes.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub predictive_scaling: Option<crate::controller::predictive_scaling::PredictiveScalingConfig>,
 }
 
 /// Scaling behavior configuration for HPA
@@ -1244,7 +1253,7 @@ pub struct DRDrillResult {
 
 /// Placement configuration for intelligent pod scheduling.
 /// Enables SCP-aware anti-affinity to ensure validator resilience.
-#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PlacementConfig {
     /// Enable SCP-aware anti-affinity.
@@ -1252,6 +1261,67 @@ pub struct PlacementConfig {
     /// placing nodes from the same quorum slice on the same physical host.
     #[serde(default)]
     pub scp_aware_anti_affinity: bool,
+
+    /// Jurisdictional compliance configuration.
+    ///
+    /// When set, the operator enforces that this node is physically placed in
+    /// the specified geographical jurisdiction by injecting `nodeAffinity` and
+    /// `tolerations` that match the corresponding Kubernetes node labels.
+    ///
+    /// # Example
+    /// ```yaml
+    /// placement:
+    ///   jurisdiction:
+    ///     code: "EU"
+    ///     regions:
+    ///       - "eu-west-1"
+    ///       - "eu-central-1"
+    ///     tolerations:
+    ///       - key: "jurisdiction"
+    ///         operator: "Equal"
+    ///         value: "EU"
+    ///         effect: "NoSchedule"
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jurisdiction: Option<JurisdictionConfig>,
+}
+
+/// Jurisdictional compliance configuration for node placement.
+///
+/// Maps a jurisdiction code (e.g. `"EU"`, `"US"`, `"SG"`) to Kubernetes
+/// node labels so that the operator can enforce physical placement via
+/// `nodeAffinity` and `tolerations`.
+///
+/// The operator uses `topology.kubernetes.io/region` by default, but any
+/// label key can be specified via `label_key`.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, JsonSchema, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct JurisdictionConfig {
+    /// ISO 3166-1 alpha-2 country code or a custom jurisdiction identifier
+    /// (e.g. `"EU"`, `"US"`, `"SG"`, `"DE"`).
+    pub code: String,
+
+    /// List of Kubernetes region values that satisfy this jurisdiction.
+    /// Mapped to the `label_key` node label (default: `topology.kubernetes.io/region`).
+    ///
+    /// Example: `["eu-west-1", "eu-central-1"]`
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regions: Vec<String>,
+
+    /// Node label key used for region matching.
+    /// Defaults to `topology.kubernetes.io/region`.
+    #[serde(default = "default_jurisdiction_label_key")]
+    pub label_key: String,
+
+    /// Additional tolerations to apply when scheduling in this jurisdiction.
+    /// Useful when jurisdiction-specific nodes carry taints (e.g. `jurisdiction=EU:NoSchedule`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[schemars(with = "Vec<serde_json::Value>")]
+    pub tolerations: Vec<k8s_openapi::api::core::v1::Toleration>,
+}
+
+fn default_jurisdiction_label_key() -> String {
+    "topology.kubernetes.io/region".to_string()
 }
 
 /// Status of a DR drill execution
@@ -1646,6 +1716,57 @@ pub enum PgBouncerPoolMode {
 }
 
 // ============================================================================
+// ============================================================================
+// Hitless Upgrade (#503)
+// ============================================================================
+
+/// Configuration for zero-interruption (hitless) upgrades of Stellar Core.
+///
+/// When enabled, the operator injects a `stellar-handoff` sidecar that
+/// transfers open peer TCP socket file descriptors to the new container
+/// via `SCM_RIGHTS` over a Unix domain socket, avoiding peer re-discovery.
+///
+/// See `docs/hitless-upgrade.md` for the full design and feasibility study.
+#[derive(Clone, Debug, Deserialize, Serialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct HitlessUpgradeConfig {
+    /// Enable hitless upgrade support.
+    /// When `true`, the `stellar-handoff` sidecar is injected into the pod.
+    #[serde(default)]
+    pub enabled: bool,
+
+    /// Maximum seconds to wait for the FD handoff to complete before
+    /// falling back to a standard rolling restart.
+    /// Default: 10
+    #[serde(default = "default_handoff_timeout")]
+    pub handoff_timeout_seconds: u32,
+
+    /// Fall back to a standard rolling restart if the handoff times out.
+    /// Default: true
+    #[serde(default = "default_true")]
+    pub fallback_to_rolling_restart: bool,
+
+    /// Container image for the handoff sidecar.
+    /// Defaults to the same image as the operator with the `handoff-sidecar` binary.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sidecar_image: Option<String>,
+}
+
+fn default_handoff_timeout() -> u32 {
+    10
+}
+
+impl Default for HitlessUpgradeConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            handoff_timeout_seconds: default_handoff_timeout(),
+            fallback_to_rolling_restart: true,
+            sidecar_image: None,
+        }
+    }
+}
+
 // NAT Traversal Configuration
 // ============================================================================
 

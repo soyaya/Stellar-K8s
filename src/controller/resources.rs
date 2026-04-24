@@ -1630,6 +1630,68 @@ fn build_pod_template(
     }
 
     // ==========================================================================
+    // Inject hitless-upgrade handoff sidecar (Validators only, when enabled)
+    // ==========================================================================
+    if let Some(hu_config) = &node.spec.hitless_upgrade {
+        if hu_config.enabled && node.spec.node_type == NodeType::Validator {
+            let sidecar_image = hu_config
+                .sidecar_image
+                .clone()
+                .unwrap_or_else(|| "stellar-k8s/handoff-sidecar:latest".to_string());
+
+            // Shared emptyDir volume for the Unix domain socket
+            let handoff_vol = k8s_openapi::api::core::v1::Volume {
+                name: "handoff-socket".to_string(),
+                empty_dir: Some(k8s_openapi::api::core::v1::EmptyDirVolumeSource::default()),
+                ..Default::default()
+            };
+            pod_spec
+                .volumes
+                .get_or_insert_with(Vec::new)
+                .push(handoff_vol);
+
+            let handoff_mount = k8s_openapi::api::core::v1::VolumeMount {
+                name: "handoff-socket".to_string(),
+                mount_path: "/handoff".to_string(),
+                ..Default::default()
+            };
+
+            // Mount the handoff volume into the main container as well
+            if let Some(main_container) = pod_spec.containers.first_mut() {
+                main_container
+                    .volume_mounts
+                    .get_or_insert_with(Vec::new)
+                    .push(handoff_mount.clone());
+            }
+
+            let handoff_sidecar = k8s_openapi::api::core::v1::Container {
+                name: "stellar-handoff".to_string(),
+                image: Some(sidecar_image),
+                args: Some(vec![
+                    "handoff".to_string(),
+                    "--socket".to_string(),
+                    "/handoff/sock".to_string(),
+                    "--timeout".to_string(),
+                    hu_config.handoff_timeout_seconds.to_string(),
+                ]),
+                volume_mounts: Some(vec![handoff_mount]),
+                liveness_probe: Some(k8s_openapi::api::core::v1::Probe {
+                    http_get: Some(k8s_openapi::api::core::v1::HTTPGetAction {
+                        path: Some("/healthz".to_string()),
+                        port: k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(8080),
+                        ..Default::default()
+                    }),
+                    initial_delay_seconds: Some(5),
+                    period_seconds: Some(10),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            pod_spec.containers.push(handoff_sidecar);
+        }
+    }
+
+    // ==========================================================================
     // NEW: Inject KMS/ESO/CSI seed env vars, volumes, and volume mounts
     // ==========================================================================
     if let Some(inj) = seed_injection {
@@ -1752,6 +1814,15 @@ pub(crate) fn merge_workload_affinity(node: &StellarNode) -> Option<Affinity> {
     let mut aff = Affinity::default();
     if let Some(na) = node.spec.storage.node_affinity.clone() {
         aff.node_affinity = Some(na);
+    }
+
+    // Inject jurisdiction nodeAffinity (overrides storage node_affinity if both set)
+    if let Some(jurisdiction) = node.spec.placement.jurisdiction.as_ref() {
+        if let Some(jur_affinity) =
+            crate::controller::jurisdiction::build_jurisdiction_node_affinity(jurisdiction)
+        {
+            aff.node_affinity = Some(jur_affinity);
+        }
     }
 
     let mut req_terms = Vec::new();
@@ -2252,15 +2323,13 @@ fn build_snapshot_restore_container(
     restore_image: Option<&str>,
 ) -> Container {
     // Choose a sensible default image based on the URL scheme.
-    let image = restore_image
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| {
-            if backup_url.starts_with("s3://") {
-                "amazon/aws-cli:latest".to_string()
-            } else {
-                "alpine:3".to_string()
-            }
-        });
+    let image = restore_image.map(|s| s.to_string()).unwrap_or_else(|| {
+        if backup_url.starts_with("s3://") {
+            "amazon/aws-cli:latest".to_string()
+        } else {
+            "alpine:3".to_string()
+        }
+    });
 
     // Determine the decompression command based on the file extension.
     let decompress_flag = if backup_url.ends_with(".tar.zst") {
@@ -2310,17 +2379,19 @@ echo "Snapshot restore complete."
     };
 
     // Build environment variables — inject AWS credentials if provided.
-    let mut env: Vec<EnvVar> = vec![
-        EnvVar {
-            name: "BACKUP_URL".to_string(),
-            value: Some(backup_url.to_string()),
-            ..Default::default()
-        },
-    ];
+    let mut env: Vec<EnvVar> = vec![EnvVar {
+        name: "BACKUP_URL".to_string(),
+        value: Some(backup_url.to_string()),
+        ..Default::default()
+    }];
 
     if let Some(secret_name) = credentials_secret_ref {
         // AWS credentials
-        for key in &["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"] {
+        for key in &[
+            "AWS_ACCESS_KEY_ID",
+            "AWS_SECRET_ACCESS_KEY",
+            "AWS_DEFAULT_REGION",
+        ] {
             env.push(EnvVar {
                 name: key.to_string(),
                 value: None,
@@ -2800,7 +2871,8 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
     let name = resource_name(node, "netpol");
 
     let mut ingress_rules: Vec<NetworkPolicyIngressRule> = Vec::new();
-    let mut egress_rules: Vec<k8s_openapi::api::networking::v1::NetworkPolicyEgressRule> = Vec::new();
+    let mut egress_rules: Vec<k8s_openapi::api::networking::v1::NetworkPolicyEgressRule> =
+        Vec::new();
 
     let app_ports = match node.spec.node_type {
         NodeType::Validator => vec![
@@ -2938,13 +3010,20 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
         if !peers.is_empty() {
             let mut peer_egress_to = Vec::new();
             for peer in peers {
-                // If it looks like an IP, use ipBlock. If it's a hostname, we can't 
+                // If it looks like an IP, use ipBlock. If it's a hostname, we can't
                 // do much in standard NetPol without a DNS controller, but we can
                 // allow all egress on peer ports as a fallback or if IP is known.
-                if peer.chars().all(|c| c.is_ascii_digit() || c == '.' || c == ':') {
+                if peer
+                    .chars()
+                    .all(|c| c.is_ascii_digit() || c == '.' || c == ':')
+                {
                     peer_egress_to.push(NetworkPolicyPeer {
                         ip_block: Some(IPBlock {
-                            cidr: if peer.contains('/') { peer } else { format!("{}/32", peer) },
+                            cidr: if peer.contains('/') {
+                                peer
+                            } else {
+                                format!("{}/32", peer)
+                            },
                             except: None,
                         }),
                         ..Default::default()
@@ -2953,9 +3032,15 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
             }
 
             egress_rules.push(k8s_openapi::api::networking::v1::NetworkPolicyEgressRule {
-                to: if peer_egress_to.is_empty() { None } else { Some(peer_egress_to) },
+                to: if peer_egress_to.is_empty() {
+                    None
+                } else {
+                    Some(peer_egress_to)
+                },
                 ports: Some(vec![NetworkPolicyPort {
-                    port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11625)),
+                    port: Some(
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11625),
+                    ),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 }]),
@@ -2969,12 +3054,16 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
                     to: None, // External history archives
                     ports: Some(vec![
                         NetworkPolicyPort {
-                            port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(80)),
+                            port: Some(
+                                k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(80),
+                            ),
                             protocol: Some("TCP".to_string()),
                             ..Default::default()
                         },
                         NetworkPolicyPort {
-                            port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(443)),
+                            port: Some(
+                                k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(443),
+                            ),
                             protocol: Some("TCP".to_string()),
                             ..Default::default()
                         },
@@ -3015,12 +3104,16 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
             }]),
             ports: Some(vec![
                 NetworkPolicyPort {
-                    port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11625)),
+                    port: Some(
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11625),
+                    ),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 },
                 NetworkPolicyPort {
-                    port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11626)),
+                    port: Some(
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(11626),
+                    ),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 },
@@ -3032,7 +3125,9 @@ fn build_network_policy(node: &StellarNode, config: &NetworkPolicyConfig) -> Net
             egress_rules.push(k8s_openapi::api::networking::v1::NetworkPolicyEgressRule {
                 to: None, // External DBs or CNPG
                 ports: Some(vec![NetworkPolicyPort {
-                    port: Some(k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(5432)),
+                    port: Some(
+                        k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(5432),
+                    ),
                     protocol: Some("TCP".to_string()),
                     ..Default::default()
                 }]),
@@ -3381,6 +3476,7 @@ mod ensure_pvc_tests {
                 nat_traversal: None,
                 custom_network_passphrase: None,
                 cross_cloud_failover: None,
+                hitless_upgrade: None,
                 history_mode: Default::default(),
                 storage: Default::default(),
             },

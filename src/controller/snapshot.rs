@@ -107,7 +107,9 @@ async fn verify_snapshot_encryption(
     match api.get(snapshot_name).await {
         Ok(snapshot) => {
             let spec = snapshot.data.get("spec").and_then(|s| s.as_object());
-            let parameters = spec.and_then(|s| s.get("parameters")).and_then(|p| p.as_object());
+            let parameters = spec
+                .and_then(|s| s.get("parameters"))
+                .and_then(|p| p.as_object());
             let encryption_key = parameters.and_then(|p| p.get("encryptionKeyRef"));
 
             if encryption_key.is_some() {

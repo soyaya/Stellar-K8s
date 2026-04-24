@@ -228,6 +228,18 @@ pub struct StellarNodeSpec {
     /// during major provider outages.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cross_cloud_failover: Option<crate::crd::CrossCloudFailoverConfig>,
+
+    /// Hitless upgrade configuration for zero-interruption Stellar Core upgrades.
+    ///
+    /// When enabled, the operator injects a handoff sidecar that transfers open
+    /// peer TCP socket file descriptors to the new container via `SCM_RIGHTS`,
+    /// avoiding peer re-discovery during version upgrades.
+    ///
+    /// Only applicable to `Validator` nodes.
+    ///
+    /// See `docs/hitless-upgrade.md` for the full design and feasibility study.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hitless_upgrade: Option<super::types::HitlessUpgradeConfig>,
 }
 
 fn default_replicas() -> i32 {
@@ -281,6 +293,7 @@ impl Default for StellarNodeSpec {
             custom_network_passphrase: None,
             sidecars: None,
             cross_cloud_failover: None,
+            hitless_upgrade: None,
         }
     }
 }
@@ -379,7 +392,13 @@ impl StellarNodeSpec {
                     "Set spec.storage.snapshotRef.volumeSnapshotName for CSI snapshot restore, or spec.storage.snapshotRef.backupUrl for compressed backup restore.",
                 ));
             }
-            if has_backup && snap_ref.backup_url.as_deref().map(|u| u.is_empty()).unwrap_or(false) {
+            if has_backup
+                && snap_ref
+                    .backup_url
+                    .as_deref()
+                    .map(|u| u.is_empty())
+                    .unwrap_or(false)
+            {
                 errors.push(SpecValidationError::new(
                     "spec.storage.snapshotRef.backupUrl",
                     "backupUrl must not be empty when set",
