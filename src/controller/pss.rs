@@ -42,7 +42,10 @@ pub async fn ensure_namespace_pss_labels(client: &Client, namespace: &str) -> Re
 
     let mut labels: BTreeMap<String, String> = BTreeMap::new();
     labels.insert(PSS_ENFORCE_LABEL.to_string(), PSS_LEVEL.to_string());
-    labels.insert(PSS_ENFORCE_VERSION_LABEL.to_string(), PSS_VERSION.to_string());
+    labels.insert(
+        PSS_ENFORCE_VERSION_LABEL.to_string(),
+        PSS_VERSION.to_string(),
+    );
     labels.insert(PSS_WARN_LABEL.to_string(), PSS_LEVEL.to_string());
     labels.insert(PSS_WARN_VERSION_LABEL.to_string(), PSS_VERSION.to_string());
     labels.insert(PSS_AUDIT_LABEL.to_string(), PSS_LEVEL.to_string());
@@ -63,7 +66,10 @@ pub async fn ensure_namespace_pss_labels(client: &Client, namespace: &str) -> Re
         .await
     {
         Ok(_) => {
-            info!("PSS 'restricted' labels applied to namespace '{}'", namespace);
+            info!(
+                "PSS 'restricted' labels applied to namespace '{}'",
+                namespace
+            );
             Ok(())
         }
         Err(kube::Error::Api(e)) if e.code == 404 => {
@@ -79,7 +85,10 @@ pub async fn ensure_namespace_pss_labels(client: &Client, namespace: &str) -> Re
             api.create(&kube::api::PostParams::default(), &ns)
                 .await
                 .map_err(Error::KubeError)?;
-            info!("Created namespace '{}' with PSS 'restricted' labels", namespace);
+            info!(
+                "Created namespace '{}' with PSS 'restricted' labels",
+                namespace
+            );
             Ok(())
         }
         Err(e) => {
@@ -170,7 +179,11 @@ pub fn validate_pss_compliance(spec: &StellarNodeSpec) -> Vec<PssViolation> {
     if let Some(sidecars) = &spec.sidecars {
         for (i, sidecar) in sidecars.iter().enumerate() {
             let prefix = format!("spec.sidecars[{}]", i);
-            check_container_security_context(&prefix, sidecar.security_context.as_ref(), &mut violations);
+            check_container_security_context(
+                &prefix,
+                sidecar.security_context.as_ref(),
+                &mut violations,
+            );
         }
     }
 
@@ -204,7 +217,13 @@ fn check_container_security_context(
     }
 
     if let Some(caps) = &sc.capabilities {
-        let forbidden = ["NET_ADMIN", "SYS_ADMIN", "SYS_PTRACE", "NET_RAW", "SYS_MODULE"];
+        let forbidden = [
+            "NET_ADMIN",
+            "SYS_ADMIN",
+            "SYS_PTRACE",
+            "NET_RAW",
+            "SYS_MODULE",
+        ];
         if let Some(adds) = &caps.add {
             for cap in adds {
                 if forbidden.contains(&cap.as_str()) {

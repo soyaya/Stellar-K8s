@@ -55,6 +55,7 @@ use super::archive_health::{
     ARCHIVE_LAG_THRESHOLD,
 };
 use super::conditions;
+use super::cross_cloud_failover;
 use super::cve_reconciler;
 use super::dr;
 use super::dr_drill;
@@ -69,7 +70,6 @@ use super::oci_snapshot;
 use super::operator_config::{hardcoded_defaults, OperatorConfig};
 use super::peer_discovery;
 use super::pss;
-use super::cross_cloud_failover;
 use super::remediation;
 use super::resources;
 use super::service_mesh;
@@ -1542,7 +1542,13 @@ pub(crate) async fn apply_stellar_node(
     }
 
     // 8b. Cross-cloud failover for Horizon/SorobanRpc nodes
-    if node.spec.cross_cloud_failover.as_ref().map(|c| c.enabled).unwrap_or(false) {
+    if node
+        .spec
+        .cross_cloud_failover
+        .as_ref()
+        .map(|c| c.enabled)
+        .unwrap_or(false)
+    {
         let prev_cc_failover = node
             .status
             .as_ref()

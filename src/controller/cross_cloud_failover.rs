@@ -243,7 +243,12 @@ async fn check_cloud_endpoint_health(
 
     // Perform multiple checks to avoid false positives
     for _ in 0..failure_threshold {
-        match timeout(Duration::from_secs(timeout_secs as u64), client.get(&url).send()).await {
+        match timeout(
+            Duration::from_secs(timeout_secs as u64),
+            client.get(&url).send(),
+        )
+        .await
+        {
             Ok(Ok(response)) if response.status().is_success() => {
                 let latency_ms = start.elapsed().as_millis() as u32;
                 return Ok(CloudHealthStatus {
@@ -265,10 +270,7 @@ async fn check_cloud_endpoint_health(
             }
             Ok(Err(e)) => {
                 consecutive_failures += 1;
-                warn!(
-                    "Cloud {} health check failed: {}",
-                    cloud.cloud_provider, e
-                );
+                warn!("Cloud {} health check failed: {}", cloud.cloud_provider, e);
             }
             Err(_) => {
                 consecutive_failures += 1;
@@ -286,10 +288,7 @@ async fn check_cloud_endpoint_health(
         healthy: false,
         latency_ms: None,
         last_check: Utc::now().to_rfc3339(),
-        error_message: Some(format!(
-            "{} consecutive failures",
-            consecutive_failures
-        )),
+        error_message: Some(format!("{} consecutive failures", consecutive_failures)),
     })
 }
 
