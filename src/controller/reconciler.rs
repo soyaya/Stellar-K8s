@@ -3026,7 +3026,11 @@ pub(crate) fn error_policy(
 
 /// Perform quorum analysis for validator nodes
 #[instrument(skip(client, node), fields(name = %node.name_any(), namespace = node.namespace()))]
-async fn perform_quorum_analysis(client: &Client, node: &StellarNode, max_attempts: u32) -> Result<()> {
+async fn perform_quorum_analysis(
+    client: &Client,
+    node: &StellarNode,
+    max_attempts: u32,
+) -> Result<()> {
     use super::quorum::QuorumAnalyzer;
 
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
@@ -3131,4 +3135,3 @@ async fn hardware_generation_for_metrics(client: &Client, node: &StellarNode) ->
         }
     }
 }
-
