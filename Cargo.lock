@@ -4444,6 +4444,7 @@ dependencies = [
  "futures",
  "glob",
  "hex",
+ "hmac",
  "hostname",
  "k8s-openapi 0.22.0",
  "kube",

@@ -109,9 +109,12 @@ tokio-rustls = { version = "0.26", optional = true }
 # Base64 for Wasm plugin loading
 base64 = "0.21"
 
+# HMAC-SHA256 for webhook payload signing
+hmac = "0.12"
+
 # SHA256 for plugin integrity verification
 sha2 = "0.10"
-hex = { version = "0.4", optional = true }
+hex = "0.4"
 rand = "0.8"
 rand_distr = "0.5.1"
 
@@ -142,7 +145,6 @@ admission-webhook = [
     "wasmtime",
     "wasmtime-wasi",
     "tokio-rustls",
-    "hex",
     "axum",
     "tower",
     "tower-http",

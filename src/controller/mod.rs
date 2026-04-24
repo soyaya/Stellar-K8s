@@ -110,6 +110,7 @@ pub mod traffic;
 mod traffic_test;
 pub mod vpa;
 mod vsl;
+pub mod webhook_delivery;
 
 pub use archive_health::{
     calculate_backoff, check_archive_integrity, check_history_archive_health, ArchiveHealthResult,
@@ -152,6 +153,9 @@ pub use remediation::{can_remediate, check_stale_node, RemediationLevel, StaleCh
 pub use service_mesh::{
     delete_service_mesh_resources, ensure_destination_rule, ensure_peer_authentication,
     ensure_request_authentication, ensure_virtual_service,
+};
+pub use webhook_delivery::{
+    DeliveryRecord, WebhookDeliveryService, WebhookEndpoint, WebhookEvent, WebhookEventType,
 };
 pub use audit_log::{AdminAction, AuditEntry, AuditLog};
 pub use snapshot_worker::run_snapshot_worker;
