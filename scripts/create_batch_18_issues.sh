@@ -1,32 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="OtowoOrg/Stellar-K8s"
+# shellcheck source=lib/repo.sh
+# shellcheck source=lib/common.sh
+source "$(dirname "$0")/lib/repo.sh"
+source "$(dirname "$0")/lib/common.sh"
 
 echo "Creating Batch 18 (24 x 200 pts) issues with auto-retry..."
-
-function create_issue_with_retry() {
-  local title="$1"
-  local label="$2"
-  local body="$3"
-  
-  local max_retries=10
-  local count=0
-  
-  while [ $count -lt $max_retries ]; do
-    if gh issue create --repo "$REPO" --title "$title" --label "$label" --body "$body"; then
-      echo "✓ Issue created: $title"
-      return 0
-    else
-      count=$((count + 1))
-      echo "API failed, retrying ($count/$max_retries) in 15 seconds..."
-      sleep 15
-    fi
-  done
-  
-  echo "Failed to create issue after $max_retries attempts: $title"
-  exit 1
-}
 
 # ─── 1 ────────────────────────────────────────────────────────────────────────
 create_issue_with_retry "Implement Advanced Thread Tuning for Stellar Core Workloads" "stellar-wave,enhancement,performance" "### 🔴 Difficulty: High (200 Points)
@@ -368,3 +348,5 @@ When an outage happens, the first thing needed is a clean timeline of logs, metr
 
 echo ""
 echo "🎉 Batch 18 (24 x 200 pts) issues created successfully! Backlog depth++"
+
+print_skip_summary

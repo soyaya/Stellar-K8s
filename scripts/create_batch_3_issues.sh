@@ -1,5 +1,8 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=lib/repo.sh
+source "$(dirname "$0")/lib/repo.sh"
 
 # Stellar-K8s Wave Issue Creation Script - BATCH 3 (High Complexity)
 # Issues #22 - #24
@@ -7,7 +10,7 @@ set -e
 echo "Creating Batch 3 (200 points) issues..."
 
 # 22. Automated PVC Snapshots/Backups (High - 200 Points)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Automated PVC Snapshots/Backups for StellarNode" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -25,7 +28,7 @@ Stellar nodes store critical data in PVCs. To ensure disaster recovery, the oper
 " --label "stellar-wave,reliability,architecture"
 
 # 23. ServiceMonitor & HPA for Horizon (High - 200 Points)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement ServiceMonitor & HPA for Horizon Auto-Scaling" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -43,7 +46,7 @@ Horizon nodes often experience variable traffic. The operator should support Hor
 " --label "stellar-wave,observability,kubernetes"
 
 # 24. Ingress & Cert-Manager Integration (High - 200 Points)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Ingress & Cert-Manager Integration for Public APIs" \
   --body "### 🔴 Difficulty: High (200 Points)
 

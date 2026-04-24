@@ -1,10 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=lib/repo.sh
+source "$(dirname "$0")/lib/repo.sh"
+
 # Stellar-K8s Wave Issue Creation Script
 # Uses gh CLI to create issues defined in WAVE_ISSUES.md
 
 # Helper to create label if not exists
 create_label() {
-  gh label create "$1" --color "$2" --description "$3" || true
+  gh label create --repo "$REPO" "$1" --color "$2" --description "$3" || true
 }
 
 echo "Ensuring labels exist..."
@@ -27,7 +32,7 @@ create_label "architecture" "0e8a16" "Architecture design"
 echo "Creating Stellar Wave issues..."
 
 # 1. Add unit tests for StellarNodeSpec validation
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add unit tests for StellarNodeSpec validation" \
   --body "The \`StellarNodeSpec::validate()\` function currently checks for missing configurations. We need comprehensive unit tests to ensure it correctly accepts valid configs and rejects invalid ones (e.g., Validator with >1 replica).
 
@@ -37,7 +42,7 @@ gh issue create \
   --label "stellar-wave,good-first-issue,testing" || echo "Failed to create issue 1"
 
 # 2. Implement Display trait for StellarNetwork
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Display trait for StellarNetwork" \
   --body "Currently, \`StellarNetwork\` relies on \`Debug\` or \`serde\` for string representation. Implementing \`std::fmt::Display\` will allow for cleaner logging and status messages.
 
@@ -47,7 +52,7 @@ gh issue create \
   --label "stellar-wave,good-first-issue,rust" || echo "Failed to create issue 2"
 
 # 3. Add GitHub Action for Cargo Audit
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add GitHub Action for Cargo Audit" \
   --body "We need to ensure our dependencies are secure. Add a step to the CI pipeline to run \`cargo audit\`.
 
@@ -58,7 +63,7 @@ gh issue create \
   --label "stellar-wave,ci,security" || echo "Failed to create issue 3"
 
 # 4. Expose Ledger Sequence in Prometheus Metrics
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Expose Ledger Sequence in Prometheus Metrics" \
   --body "The operator exposes basic metrics, but we need to track the \`ledger_sequence\` from the node status.
 
@@ -69,7 +74,7 @@ gh issue create \
   --label "stellar-wave,observability,feature" || echo "Failed to create issue 4"
 
 # 5. Add retentionPolicy support for specific Storage Classes
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add retentionPolicy support for specific Storage Classes" \
   --body "Extend the \`StorageConfig\` struct to allow specifying a custom \`volumeBindingMode\` or other storage-class specific parameters via annotations.
 
@@ -79,7 +84,7 @@ gh issue create \
   --label "stellar-wave,kubernetes,feature" || echo "Failed to create issue 5"
 
 # 6. Implement Suspended State correctly for Validators
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Suspended State correctly for Validators" \
   --body "Currently, setting \`suspended: true\` scales replicas to 0. For Validators (StatefulSets), this works, but we should also ensure the Service is untouched so peer discovery (if external) remains valid, or decide if it should be removed.
 
@@ -89,7 +94,7 @@ gh issue create \
   --label "stellar-wave,bug,logic" || echo "Failed to create issue 6"
 
 # 7. Create a Grafana Dashboard JSON for Stellar Nodes
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Create a Grafana Dashboard JSON for Stellar Nodes" \
   --body "Create a standard Grafana dashboard visualization for the metrics exported by the operator (and the Stellar nodes themselves if scraped).
 
@@ -99,7 +104,7 @@ gh issue create \
   --label "stellar-wave,observability,documentation" || echo "Failed to create issue 7"
 
 # 8. Implement Soroban Captive Core Configuration Generator
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Soroban Captive Core Configuration Generator" \
   --body "Soroban RPC needs a Captive Core config. Instead of passing a raw string, we should generate the TOML configuration from structured fields in the CRD (e.g., \`network_passphrase\`, \`history_archive_urls\`).
 
@@ -110,7 +115,7 @@ gh issue create \
   --label "stellar-wave,soroban,feature" || echo "Failed to create issue 8"
 
 # 9. Add Automated History Archive Health Check with Retry
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add Automated History Archive Health Check with Retry" \
   --body "Before starting a validator, the operator should verify that the configured \`history_archive_urls\` are reachable.
 
@@ -121,7 +126,7 @@ gh issue create \
   --label "stellar-wave,reliability,rust" || echo "Failed to create issue 9"
 
 # 10. Implement Leader Election for High Availability Operator
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Leader Election for High Availability Operator" \
   --body "To run multiple replicas of the \`stellar-operator\` itself, we need leader election to prevent split-brain reconciliation.
 

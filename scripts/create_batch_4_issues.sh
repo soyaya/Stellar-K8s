@@ -1,5 +1,8 @@
-#!/bin/bash
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
+
+# shellcheck source=lib/repo.sh
+source "$(dirname "$0")/lib/repo.sh"
 
 # Stellar-K8s Wave Issue Creation Script - BATCH 4
 # 6 High (200 pts), 2 Medium (150 pts), 2 Trivial (100 pts)
@@ -9,7 +12,7 @@ echo "Creating Batch 4 (Mixed) issues..."
 # --- HIGH (200 pts) ---
 
 # 29. Chaos Mesh Integration (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Integrate Chaos Mesh for Network Partition Testing" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -26,7 +29,7 @@ To ensure the operator handles fragile network conditions gracefully, we need to
 " --label "stellar-wave,reliability,architecture"
 
 # 30. Dynamic Peer Discovery (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Dynamic Peer Discovery Controller" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -43,7 +46,7 @@ Currently, peers are defined statically. We need a controller that dynamically d
 " --label "stellar-wave,architecture,logic"
 
 # 31. Multi-Cluster Support (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add Multi-Cluster Orchestration Support" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -60,7 +63,7 @@ Large Stellar deployments should span multiple Kubernetes clusters. This task in
 " --label "stellar-wave,architecture,kubernetes"
 
 # 32. Auto-Remediation for Stale Ledgers (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Auto-Remediation for Stale/Desynced Nodes" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -76,7 +79,7 @@ If a node gets stuck or significantly behind the network, it may need an automat
 " --label "stellar-wave,reliability,logic"
 
 # 33. Cloud KMS/HSM Integration (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement Cloud KMS/HSM Integration for Node Keys" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -93,7 +96,7 @@ Storing node keys in plain Kubernetes Secrets is not sufficient for high-securit
 " --label "stellar-wave,security,architecture"
 
 # 34. OpenTelemetry Tracing (High - 200 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add OpenTelemetry Tracing Support" \
   --body "### 🔴 Difficulty: High (200 Points)
 
@@ -112,7 +115,7 @@ Debugging complex operator logic requires distributed tracing. Implement OpenTel
 # --- MEDIUM (150 pts) ---
 
 # 35. mTLS for Node-to-Node Communication (Medium - 150 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Implement mTLS for Internal Node Communication" \
   --body "### 🟡 Difficulty: Medium (150 Points)
 
@@ -128,7 +131,7 @@ Secure the traffic between Stellar nodes and the Operator REST API using mutual 
 " --label "stellar-wave,security,feature"
 
 # 36. Canary Rollouts with Traffic Weighting (Medium - 150 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Support Canary Rollouts with Traffic Weighting" \
   --body "### 🟡 Difficulty: Medium (150 Points)
 
@@ -146,7 +149,7 @@ When upgrading Horizon or Soroban RPC, we should support canary deployments wher
 # --- TRIVIAL (100 pts) ---
 
 # 37. CLI Version and Info Subcommands (Trivial - 100 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Add 'version' and 'info' subcommands to CLI" \
   --body "### 🟢 Difficulty: Trivial (100 Points)
 
@@ -162,7 +165,7 @@ Provide users with a way to check the operator version, build date, and basic cl
 " --label "stellar-wave,good-first-issue,rust"
 
 # 38. Improved CRD Validation Formatting (Trivial - 100 pts)
-gh issue create \
+gh issue create --repo "$REPO" \
   --title "Improve CRD Validation Error Formatting" \
   --body "### 🟢 Difficulty: Trivial (100 Points)
 
