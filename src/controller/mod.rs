@@ -9,6 +9,7 @@ pub mod resource_meta;
 mod archive_health;
 pub mod audit;
 pub mod captive_core;
+pub mod chaos_engineering;
 pub mod conditions;
 pub mod cost;
 pub mod cross_cluster;
@@ -29,6 +30,7 @@ pub mod kms_secret;
 #[cfg(feature = "metrics")]
 pub mod metrics;
 pub mod mtls;
+pub mod mtls_rotation;
 pub mod oci_snapshot;
 pub mod operator_config;
 pub mod peer_discovery;
@@ -47,6 +49,7 @@ mod resources;
 mod resources_test;
 pub mod service_mesh;
 mod snapshot;
+pub mod storage_migration;
 pub mod traffic;
 #[cfg(test)]
 mod traffic_test;
