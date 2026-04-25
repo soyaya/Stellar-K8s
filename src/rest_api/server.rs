@@ -26,6 +26,7 @@ use super::audit_handlers;
 use super::custom_metrics;
 use super::dashboard_handlers;
 use super::handlers;
+use super::health_summary;
 
 /// Build a rustls ServerConfig from PEM data (cert, key, CA for client verification).
 /// Used for initial server setup and after certificate rotation to reload without restart.
@@ -98,6 +99,10 @@ pub async fn run_server(
         .route("/leader", get(handlers::leader_status))
         .route("/api/v1/nodes", get(handlers::list_nodes))
         .route("/api/v1/nodes/:namespace/:name", get(handlers::get_node))
+        // Health summary API (Issue #552)
+        .route("/v1/health/summary", get(health_summary::get_health_summary))
+        .route("/v1/health/nodes", get(health_summary::get_node_health_status))
+        .route("/v1/health/incidents", get(health_summary::get_health_incidents))
         // Log level dynamic control
         .route(
             "/config/log-level",
