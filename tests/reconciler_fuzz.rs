@@ -65,6 +65,7 @@ fn default_storage() -> StorageConfig {
         annotations: None,
         node_affinity: None,
         ..Default::default()
+        snapshot_ref: None,
     }
 }
 
@@ -89,6 +90,9 @@ fn base_validator_spec() -> StellarNodeSpec {
             vl_source: None,
             hsm_config: None,
             ..Default::default()
+            external_dns: None,
+            known_peers: None,
+            quorum_optimization: None,
         }),
         horizon_config: None,
         soroban_config: None,
@@ -127,6 +131,12 @@ fn base_validator_spec() -> StellarNodeSpec {
         label_propagation: None,
         sidecars: None,
         ..Default::default()
+        cert_manager: None,
+        cross_cloud_failover: None,
+        ebpf_config: None,
+        proximity_aware: false,
+        probes: None,
+        hitless_upgrade: None,
     }
 }
 
@@ -184,6 +194,12 @@ fn base_horizon_spec() -> StellarNodeSpec {
         label_propagation: None,
         sidecars: None,
         ..Default::default()
+        cert_manager: None,
+        cross_cloud_failover: None,
+        ebpf_config: None,
+        proximity_aware: false,
+        probes: None,
+        hitless_upgrade: None,
     }
 }
 
@@ -241,6 +257,12 @@ fn base_soroban_spec() -> StellarNodeSpec {
         label_propagation: None,
         sidecars: None,
         ..Default::default()
+        cert_manager: None,
+        cross_cloud_failover: None,
+        ebpf_config: None,
+        proximity_aware: false,
+        probes: None,
+        hitless_upgrade: None,
     }
 }
 
@@ -340,6 +362,11 @@ async fn reconcile_with_failing_client_never_panics_and_converges() {
         job_registry: std::sync::Arc::new(Default::default()),
         audit_log: std::sync::Arc::new(Default::default()),
         oidc_config: None,
+        audit_log: std::sync::Arc::new(Default::default()),
+        job_registry: std::sync::Arc::new(Default::default()),
+        retry_budget_max_attempts: 3,
+        retry_budget_retriable_secs: 15,
+        retry_budget_nonretriable_secs: 60,
     });
     let node = make_node(
         base_validator_spec(),

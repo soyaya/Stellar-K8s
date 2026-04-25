@@ -22,6 +22,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+
 use prometheus_client::encoding::text::encode;
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
@@ -94,6 +95,12 @@ pub struct WatcherMetrics {
 
     /// Identity gauge — always 1, carries watcher metadata as labels.
     pub watcher_info: Family<WatcherLabels, Gauge<i64, AtomicI64>>,
+}
+
+impl Default for WatcherMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WatcherMetrics {

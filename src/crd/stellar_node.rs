@@ -10,13 +10,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::types::{
-    AutoscalingConfig, Condition, CrossClusterConfig, DisasterRecoveryConfig,
-    DisasterRecoveryStatus, ExternalDatabaseConfig, ForensicSnapshotConfig, GlobalDiscoveryConfig,
-    HistoryMode, HorizonConfig, IngressConfig, LabelPropagationConfig, LoadBalancerConfig,
-    ManagedDatabaseConfig, NetworkPolicyConfig, NodeType, OciSnapshotConfig, PlacementConfig,
-    PodAntiAffinityStrength, ProbeConfig, ResourceRequirements, RestoreFromSnapshotConfig,
-    RetentionPolicy, RolloutStrategy, SnapshotScheduleConfig, SorobanConfig, StellarNetwork,
-    StorageConfig, ValidatorConfig, VpaConfig,
+    AutoscalingConfig, CertManagerConfig, Condition, CrossClusterConfig,
+    DisasterRecoveryConfig, DisasterRecoveryStatus, ExternalDatabaseConfig, ForensicSnapshotConfig,
+    GasAutoscalingConfig, GlobalDiscoveryConfig, HistoryMode, HorizonConfig, IngressConfig,
+    LabelPropagationConfig, LoadBalancerConfig, ManagedDatabaseConfig, NetworkPolicyConfig,
+    NodeType, OciSnapshotConfig, PlacementConfig, PodAntiAffinityStrength, ProbeConfig,
+    ResourceRequirements, RestoreFromSnapshotConfig, RetentionPolicy, RolloutStrategy,
+    SnapshotScheduleConfig, SorobanConfig, StellarNetwork, StorageConfig, ValidatorConfig,
+    VpaConfig,
 };
 
 /// Structured validation error for `StellarNodeSpec`
@@ -196,6 +197,27 @@ pub struct StellarNodeSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub service_mesh: Option<super::service_mesh::ServiceMeshConfig>,
 
+    /// cert-manager integration for automatic mTLS certificate issuance and rotation.
+    ///
+    /// When set, the operator creates a cert-manager `Certificate` resource for this node
+    /// instead of issuing a self-signed certificate internally. cert-manager handles
+    /// renewal automatically; the operator watches the resulting Secret and triggers a
+    /// rolling restart when the certificate is rotated.
+    ///
+    /// Requires cert-manager v1.x to be installed in the cluster.
+    ///
+    /// # Example
+    /// ```yaml
+    /// certManager:
+    ///   issuerRef:
+    ///     name: letsencrypt-prod
+    ///     kind: ClusterIssuer
+    ///   duration: "2160h"
+    ///   renewBefore: "720h"
+    /// ```
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cert_manager: Option<CertManagerConfig>,
+
     /// Forensic snapshot: set `metadata.annotations["stellar.org/request-forensic-snapshot"]="true"`
     /// to trigger a one-shot capture (PCAP, optional core dump) uploaded to S3.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -266,6 +288,33 @@ pub struct StellarNodeSpec {
     /// See `docs/hitless-upgrade.md` for the full design and feasibility study.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hitless_upgrade: Option<super::types::HitlessUpgradeConfig>,
+
+    /// Proactive Failure Detection using eBPF.
+    ///
+    /// When enabled, an `ebpf-exporter` sidecar is injected into the Validator Pod
+    /// to monitor silent failures like slow disk IO and network jitter.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ebpf_config: Option<super::types::EbpfConfig>,
+
+    /// Automated secret rotation for database credentials.
+    ///
+    /// When enabled, the operator automatically rotates PostgreSQL passwords
+    /// on a configurable schedule, updating both the database and Kubernetes
+    /// secrets without downtime.
+    ///
+    /// Requires database configuration (either `database` or `managed_database`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub secret_rotation: Option<crate::backup::SecretRotationConfig>,
+
+    /// Automated backup verification via temporary clusters.
+    ///
+    /// When enabled, the operator periodically spins up temporary clusters,
+    /// restores backups, and verifies data integrity to ensure backups are
+    /// recoverable.
+    ///
+    /// Requires backup configuration and sufficient cluster resources.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup_verification: Option<crate::backup::BackupVerificationConfig>,
 }
 
 fn default_replicas() -> i32 {
@@ -320,9 +369,13 @@ impl Default for StellarNodeSpec {
             resource_meta: None,
             custom_network_passphrase: None,
             sidecars: None,
+            cert_manager: None,
             probes: None,
             cross_cloud_failover: None,
             hitless_upgrade: None,
+            pruning_policy: None,
+            ebpf_config: None,
+            proximity_aware: false,
         }
     }
 }
@@ -605,6 +658,15 @@ impl StellarNodeSpec {
                             "Set spec.autoscaling.maxReplicas to be greater than or equal to minReplicas.",
                         ));
                     }
+                    if let Some(ref gas) = autoscaling.gas_autoscaling {
+                        if gas.enabled {
+                            errors.push(SpecValidationError::new(
+                                "spec.autoscaling.gasAutoscaling",
+                                "gasAutoscaling is only supported for SorobanRPC nodes",
+                                "Remove spec.autoscaling.gasAutoscaling or set enabled: false for Horizon nodes; gas-based autoscaling is only supported for SorobanRpc.",
+                            ));
+                        }
+                    }
                 }
                 if let Some(ingress) = &self.ingress {
                     validate_ingress(ingress, &mut errors);
@@ -640,6 +702,9 @@ impl StellarNodeSpec {
                             "autoscaling.maxReplicas must be >= minReplicas",
                             "Set spec.autoscaling.maxReplicas to be greater than or equal to minReplicas.",
                         ));
+                    }
+                    if let Some(ref gas) = autoscaling.gas_autoscaling {
+                        validate_gas_autoscaling(gas, &mut errors);
                     }
                 }
                 if let Some(ingress) = &self.ingress {
@@ -717,6 +782,34 @@ impl StellarNodeSpec {
         self.storage.retention_policy == RetentionPolicy::Delete
     }
 }
+
+fn validate_gas_autoscaling(gas: &GasAutoscalingConfig, errors: &mut Vec<SpecValidationError>) {
+    if !gas.enabled {
+        return;
+    }
+    if gas.min_replicas > gas.max_replicas {
+        errors.push(SpecValidationError::new(
+            "spec.autoscaling.gasAutoscaling.minReplicas",
+            "gasAutoscaling.minReplicas must be <= maxReplicas",
+            "Set spec.autoscaling.gasAutoscaling.minReplicas to a value less than or equal to maxReplicas.",
+        ));
+    }
+    if gas.ewma_alpha <= 0.0 || gas.ewma_alpha >= 1.0 {
+        errors.push(SpecValidationError::new(
+            "spec.autoscaling.gasAutoscaling.ewmaAlpha",
+            "gasAutoscaling.ewmaAlpha must be in range (0.0, 1.0) exclusive",
+            "Set spec.autoscaling.gasAutoscaling.ewmaAlpha to a value strictly between 0.0 and 1.0 (e.g. 0.3).",
+        ));
+    }
+    if gas.scale_up_threshold <= gas.scale_down_threshold {
+        errors.push(SpecValidationError::new(
+            "spec.autoscaling.gasAutoscaling.scaleUpThreshold",
+            "gasAutoscaling.scaleUpThreshold must be greater than scaleDownThreshold",
+            "Set spec.autoscaling.gasAutoscaling.scaleUpThreshold to a value strictly greater than scaleDownThreshold.",
+        ));
+    }
+}
+
 #[allow(dead_code)]
 fn validate_ingress(ingress: &IngressConfig, errors: &mut Vec<SpecValidationError>) {
     if ingress.hosts.is_empty() {
@@ -1493,3 +1586,9 @@ mod tests {
         assert_eq!(spec.container_image(), "stellar/horizon:v2.10.0");
     }
 }
+
+    /// History archive pruning policy for automated retention management.
+    /// Enables safe deletion of old checkpoints based on retention policies.
+    /// Only applicable to `Validator` nodes with history archives enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pruning_policy: Option<super::types::PruningPolicy>,

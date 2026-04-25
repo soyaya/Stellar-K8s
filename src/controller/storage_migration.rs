@@ -184,7 +184,7 @@ impl StorageMigrationController {
     /// Calculate data checksum before migration
     async fn calculate_data_checksum_before(
         &self,
-        config: &StorageMigrationConfig,
+        _config: &StorageMigrationConfig,
         mut state: StorageMigrationState,
     ) -> Result<StorageMigrationState> {
         debug!("Calculating data checksum before migration");
@@ -320,7 +320,7 @@ impl StorageMigrationController {
     /// Verify data integrity after migration
     async fn verify_data_integrity(
         &self,
-        config: &StorageMigrationConfig,
+        _config: &StorageMigrationConfig,
         mut state: StorageMigrationState,
     ) -> Result<StorageMigrationState> {
         debug!("Verifying data integrity after migration");
@@ -345,7 +345,7 @@ impl StorageMigrationController {
     async fn cleanup_migration(
         &self,
         config: &StorageMigrationConfig,
-        mut state: StorageMigrationState,
+        state: StorageMigrationState,
     ) -> Result<StorageMigrationState> {
         info!("Cleaning up migration resources");
 

@@ -503,7 +503,7 @@ async fn update_external_dns(
 
 /// Cloud health status
 #[derive(
-    Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema,
+    Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema, PartialEq, Eq,
 )]
 pub struct CloudHealthStatus {
     pub cloud_provider: String,

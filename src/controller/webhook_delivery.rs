@@ -287,7 +287,7 @@ impl WebhookDeliveryService {
     pub async fn delivery_log(&self) -> Vec<DeliveryRecord> {
         let log = self.delivery_log.lock().await;
         let mut records = log.clone();
-        records.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        records.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         records
     }
 

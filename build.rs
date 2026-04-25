@@ -2,6 +2,7 @@
 #[cfg(not(feature = "k8s-v1-30"))]
 compile_error!(
     "The Kubernetes version feature must be enabled. \
+    "Exactly one Kubernetes version feature must be enabled. \
      Use --features k8s-v1-30"
 );
 
