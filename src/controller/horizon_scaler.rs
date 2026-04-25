@@ -3,7 +3,7 @@
 //! Scales Horizon pods based on the frequency of HTTP 429 (Too Many Requests)
 //! responses exported from Prometheus. Supports predictive scaling.
 
-use crate::controller::predictive_scaling::{fit_holt_winters, HoltWintersState};
+use crate::controller::predictive_scaling::fit_holt_winters;
 use crate::crd::StellarNode;
 use crate::error::Result;
 use tracing::{debug, info};
@@ -64,7 +64,7 @@ impl HorizonRateLimitScaler {
         let target_replicas = self.compute_replicas(current_replicas, rate_429, threshold);
 
         // If predictive scaling is enabled, adjust target
-        if let Some(ref autoscaling) = node.spec.autoscaling {
+        if let Some(ref _autoscaling) = node.spec.autoscaling {
             // This is just a placeholder for future integration with PredictiveScalingConfig
             info!(
                 "Rate-limit 기반 predictive scaling evaluation for {}",

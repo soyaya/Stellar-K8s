@@ -6,7 +6,7 @@
 use crate::crd::types::CanaryConfig;
 use crate::error::Result;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn};
+use tracing::info;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct KayentaJudgeResult {

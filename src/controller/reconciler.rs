@@ -19,6 +19,8 @@
 //! 6. Update StellarNode status with current state
 //! 7. Schedule requeue for periodic health checks
 
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -33,7 +35,7 @@ use kube::{
     runtime::{
         controller::{Action, Controller},
         events::{Event as K8sRecorderEvent, EventType, Recorder, Reporter},
-        finalizer::{finalizer, Event as FinalizerEvent},
+        finalizer::finalizer,
         watcher::Config,
     },
     Resource, ResourceExt,
@@ -50,21 +52,37 @@ use crate::error::{Error, Result};
 use crate::infra;
 
 use super::archive_health::{
-    check_archive_integrity, check_archive_integrity_random, ArchiveHealthResult,
-    ArchiveIntegrityCheckResult, ARCHIVE_LAG_THRESHOLD,
+    calculate_backoff, check_archive_integrity, check_archive_integrity_random,
+    check_history_archive_health, ArchiveHealthResult, ArchiveIntegrityCheckResult,
+    ARCHIVE_LAG_THRESHOLD,
 };
 use super::audit_sink::{AuditSink, NoopAuditSink, S3AuditSink};
 use super::audit_worker::AuditWorker;
 use super::conditions;
+use super::cross_cloud_failover;
+use super::cve_reconciler;
+use super::dr;
+use super::dr_drill;
 use super::finalizers::STELLAR_NODE_FINALIZER;
 use super::health;
+use super::kms_secret;
+use super::label_propagation::LabelPropagator;
 use super::maintenance;
 #[cfg(feature = "metrics")]
 use super::metrics;
-use super::operator_config::OperatorConfig;
+use super::mtls;
+use super::oci_snapshot;
+use super::operator_config::{hardcoded_defaults, OperatorConfig};
+use super::peer_discovery;
+use super::pss;
+use super::remediation;
 use super::resources;
 use super::service_mesh;
+use super::sync_scale;
+use super::sync_state_monitor;
 use super::vpa as vpa_controller;
+use super::vsl;
+use chrono::Utc;
 
 // Constants
 #[allow(dead_code)]
@@ -391,7 +409,7 @@ pub async fn run_controller(state: Arc<ControllerState>) -> Result<()> {
             Config::default(),
         )
         .shutdown_on_signal()
-        .run(reconcile, error_policy, state.clone())
+        .run(|obj, ctx| reconcile(obj, ctx), error_policy, state.clone())
         .fold(BatchSummaryReport::new(50), {
             let state = state.clone();
             move |mut report, res| {
@@ -618,96 +636,87 @@ where
 /// # Error Handling
 /// Returns a `Result<Action, Error>`. Retriable errors (like K8s API timeouts)
 /// return an `Action::requeue` to retry with exponential backoff.
-#[instrument(skip(obj, ctx), fields(name = obj.metadata.name, namespace = obj.metadata.namespace))]
-async fn reconcile(obj: Arc<StellarNode>, ctx: Arc<ControllerState>) -> Result<Action> {
-    let node_name = obj.name_any();
-    let namespace = obj.namespace().unwrap_or_else(|| "default".to_string());
-    let reconcile_id = ctx.next_reconcile_id();
+fn reconcile(
+    obj: Arc<StellarNode>,
+    ctx: Arc<ControllerState>,
+) -> BoxFuture<'static, Result<Action>> {
+    async move {
+        let node_name = obj.name_any();
+        let namespace = obj.namespace().unwrap_or_else(|| "default".to_string());
 
-    let node_name_for_span = node_name.clone();
-    let namespace_for_span = namespace.clone();
-    let resource_version = obj
-        .metadata
-        .resource_version
-        .clone()
-        .unwrap_or_else(|| "unknown".to_string());
+        #[cfg(feature = "metrics")]
+        let reconcile_start = std::time::Instant::now();
 
-    // Attach per-reconcile structured fields so every log event during reconciliation
-    // can be correlated in JSON logs (node_name/namespace/reconcile_id/resource_version).
-    // OTel semantic conventions: https://opentelemetry.io/docs/specs/semconv/
-    let _reconcile_span = info_span!(
-        "reconcile_attempt",
-        // OTel resource / k8s semantic conventions
-        "k8s.resource.kind"       = "StellarNode",
-        "k8s.resource.name"       = %node_name_for_span,
-        "k8s.namespace.name"      = %namespace_for_span,
-        "k8s.resource.version"    = %resource_version,
-        // Operator-specific fields
-        "stellar.reconcile_id"    = %reconcile_id,
-        "stellar.node_type"       = %obj.spec.node_type,
-        "stellar.network"         = ?obj.spec.network,
-        // Legacy fields kept for backward compat with existing log queries
-        node_name                 = %node_name_for_span,
-        namespace                 = %namespace_for_span,
-        reconcile_id              = %reconcile_id,
-        resource_version          = %resource_version,
-    );
-    let _reconcile_enter = _reconcile_span.enter();
-
-    #[cfg(feature = "metrics")]
-    let reconcile_start = std::time::Instant::now();
-
-    if !ctx.is_leader.load(std::sync::atomic::Ordering::Relaxed) {
-        debug!("Not the leader, skipping reconciliation");
-        return Ok(Action::requeue(Duration::from_secs(5)));
-    }
-
-    let res = {
-        let client = ctx.client.clone();
-        let api: Api<StellarNode> = Api::namespaced(client.clone(), &namespace);
-
-        info!(
-            "Reconciling StellarNode {}/{} (type: {:?})",
-            namespace, node_name, obj.spec.node_type
-        );
-
-        // Use kube-rs built-in finalizer helper for clean lifecycle management
-        finalizer(&api, STELLAR_NODE_FINALIZER, obj, |event| async {
-            match event {
-                FinalizerEvent::Apply(node) => apply_stellar_node(&client, &node, &ctx).await,
-                FinalizerEvent::Cleanup(node) => cleanup_stellar_node(&client, &node, &ctx).await,
-            }
-        })
-        .await
-        .map_err(Error::from)
-    };
-
-    #[cfg(feature = "metrics")]
-    {
-        let seconds = reconcile_start.elapsed().as_secs_f64();
-        metrics::observe_reconcile_duration_seconds("stellarnode", seconds);
-        if let Err(err) = &res {
-            // Keep the label cardinality low: a few broad error kinds.
-            let kind = match err {
-                Error::KubeError(_) => "kube",
-                Error::ValidationError(_) => "validation",
-                Error::ConfigError(_) => "config",
-                _ => "unknown",
-            };
-            metrics::inc_reconcile_error("stellarnode", kind);
-            metrics::inc_operator_reconcile_error("stellarnode", kind);
-        } else {
-            // Record successful reconciliation timestamp
-            let now = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs();
-            ctx.last_reconcile_success
-                .store(now, std::sync::atomic::Ordering::Relaxed);
+        if !ctx.is_leader.load(std::sync::atomic::Ordering::Relaxed) {
+            debug!("Not the leader, skipping reconciliation");
+            return Ok(Action::requeue(Duration::from_secs(5)));
         }
-    }
 
-    res
+        let res = {
+            let client = ctx.client.clone();
+            let api: Api<StellarNode> = Api::namespaced(client.clone(), &namespace);
+
+            info!(
+                "Reconciling StellarNode {}/{} (type: {:?})",
+                namespace, node_name, obj.spec.node_type
+            );
+
+            // Manual finalizer logic to avoid HRTB Send issues with the helper closure
+            if obj.metadata.deletion_timestamp.is_some() {
+                if obj.finalizers().iter().any(|f| f == STELLAR_NODE_FINALIZER) {
+                    cleanup_stellar_node(&client, &obj, &ctx).await?;
+
+                    let patch = serde_json::json!({
+                        "metadata": {
+                            "finalizers": obj.finalizers().iter().filter(|f| f != &STELLAR_NODE_FINALIZER).collect::<Vec<_>>()
+                        }
+                    });
+                    api.patch(&node_name, &PatchParams::default(), &Patch::Merge(patch)).await?;
+                }
+                Ok(Action::await_change())
+            } else {
+                if !obj.finalizers().iter().any(|f| f == STELLAR_NODE_FINALIZER) {
+                    let mut finalizers = obj.finalizers().to_vec();
+                    finalizers.push(STELLAR_NODE_FINALIZER.to_string());
+                    let patch = serde_json::json!({
+                        "metadata": {
+                            "finalizers": finalizers
+                        }
+                    });
+                    api.patch(&node_name, &PatchParams::default(), &Patch::Merge(patch)).await?;
+                }
+                apply_stellar_node(&client, &obj, &ctx).await
+            }
+        };
+
+        #[cfg(feature = "metrics")]
+        {
+            let seconds = reconcile_start.elapsed().as_secs_f64();
+            metrics::observe_reconcile_duration_seconds("stellarnode", seconds);
+            if let Err(err) = &res {
+                // Keep the label cardinality low: a few broad error kinds.
+                let kind = match err {
+                    Error::KubeError(_) => "kube",
+                    Error::ValidationError(_) => "validation",
+                    Error::ConfigError(_) => "config",
+                    _ => "unknown",
+                };
+                metrics::inc_reconcile_error("stellarnode", kind);
+                metrics::inc_operator_reconcile_error("stellarnode", kind);
+            } else {
+                // Record successful reconciliation timestamp
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                ctx.last_reconcile_success
+                    .store(now, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+
+        res
+    }
+    .boxed()
 }
 
 /// Apply/create/update the StellarNode resources
@@ -715,12 +724,12 @@ async fn reconcile(obj: Arc<StellarNode>, ctx: Arc<ControllerState>) -> Result<A
     skip(client, node, ctx),
     fields(
         // OTel semantic conventions
-        "k8s.resource.kind"  = "StellarNode",
-        "k8s.resource.name"  = %node.name_any(),
-        "k8s.namespace.name" = ?node.namespace(),
-        "stellar.node_type"  = %node.spec.node_type,
-        "stellar.network"    = ?node.spec.network,
-        "stellar.version"    = %node.spec.version,
+        k8s_resource_kind  = "StellarNode",
+        k8s_resource_name  = %node.name_any(),
+        k8s_namespace_name = ?node.namespace(),
+        stellar_node_type  = %node.spec.node_type,
+        stellar_network    = ?node.spec.network,
+        stellar_version    = %node.spec.version,
         // Legacy fields
         name      = %node.name_any(),
         namespace = ?node.namespace(),

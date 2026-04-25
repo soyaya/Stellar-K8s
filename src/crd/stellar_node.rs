@@ -411,6 +411,7 @@ impl Default for StellarNodeSpec {
             backup_verification: None,
             log_shipper: None,
             sync_state_scaling: None,
+            pruning_policy: None,
         }
     }
 }

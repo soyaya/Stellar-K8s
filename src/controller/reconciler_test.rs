@@ -200,6 +200,8 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
                     backup: None,
                     pooling: None,
                     postgres_version: "16".to_string(),
+                    database_name: None,
+                    username: None,
                 }),
                 autoscaling: None,
                 ingress: None,

@@ -4,7 +4,8 @@
 //! Provides dry-run mode, safety locks, and cloud-native bucket lifecycle integration.
 
 use chrono::{DateTime, Utc};
-use cron::CronExpression;
+use cron::Schedule;
+use std::str::FromStr;
 use tracing::warn;
 
 use crate::crd::types::{PruningPolicy, PruningStatus};
@@ -32,7 +33,7 @@ impl PruningWorker {
             return false;
         };
 
-        let Ok(cron) = CronExpression::from_str(schedule) else {
+        let Ok(cron) = Schedule::from_str(schedule) else {
             warn!("Invalid cron expression: {}", schedule);
             return false;
         };
@@ -42,7 +43,7 @@ impl PruningWorker {
             None => true,
             Some(last) => {
                 // Check if next scheduled time has passed
-                if let Ok(next) = cron.next_after(&last) {
+                if let Some(next) = cron.after(&last).next() {
                     next <= now
                 } else {
                     false

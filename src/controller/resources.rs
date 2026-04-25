@@ -1123,8 +1123,14 @@ fn build_cnpg_cluster(node: &StellarNode, config: &ManagedDatabaseConfig) -> Clu
             }),
             bootstrap: Some(BootstrapConfiguration {
                 initdb: Some(InitDbConfiguration {
-                    database: "stellar".to_string(),
-                    owner: "stellar".to_string(),
+                    database: config
+                        .database_name
+                        .clone()
+                        .unwrap_or_else(|| "stellar".to_string()),
+                    owner: config
+                        .username
+                        .clone()
+                        .unwrap_or_else(|| "stellar".to_string()),
                     secret: None,
                 }),
                 recovery: None,
@@ -2688,11 +2694,14 @@ fn build_container(node: &StellarNode, enable_mtls: bool) -> Container {
             name: db_env_var_name.to_string(),
             value: None,
             value_from: Some(EnvVarSource {
-                secret_key_ref: Some(SecretKeySelector {
-                    name: Some(db_config.secret_key_ref.name.clone()),
-                    key: db_config.secret_key_ref.key.clone(),
-                    ..Default::default()
-                }),
+                secret_key_ref: db_config
+                    .secret_key_ref
+                    .as_ref()
+                    .map(|r| SecretKeySelector {
+                        name: Some(r.name.clone()),
+                        key: r.key.clone(),
+                        ..Default::default()
+                    }),
                 ..Default::default()
             }),
         });

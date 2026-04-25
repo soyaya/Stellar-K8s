@@ -33,7 +33,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::postgres::PgPoolOptions;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::time::Duration;

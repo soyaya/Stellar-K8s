@@ -28,14 +28,14 @@ use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use k8s_openapi::api::apps::v1::StatefulSet;
-use k8s_openapi::api::core::v1::{Namespace, PersistentVolumeClaim, Pod, Service};
+use k8s_openapi::api::core::v1::{Namespace, Service};
 use kube::{
-    api::{Api, DeleteParams, ListParams, PostParams},
+    api::{Api, DeleteParams, PostParams},
     Client,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgPoolOptions, PgPool, Row};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::time::Duration;
@@ -610,13 +610,13 @@ impl BackupVerificationScheduler {
     }
 
     /// Restore backup to temporary database
-    async fn restore_backup(&self, namespace: &str, name: &str) -> Result<()> {
+    async fn restore_backup(&self, _namespace: &str, _name: &str) -> Result<()> {
         match &self.config.backup_source {
             BackupSource::S3 {
                 bucket,
-                region,
+                region: _,
                 prefix,
-                credentials_secret,
+                credentials_secret: _,
             } => {
                 // Create a Job to restore from S3
                 info!("Restoring backup from S3: s3://{}/{}", bucket, prefix);
@@ -626,7 +626,7 @@ impl BackupVerificationScheduler {
             }
             BackupSource::VolumeSnapshot {
                 snapshot_name,
-                storage_class,
+                storage_class: _,
             } => {
                 info!("Restoring from VolumeSnapshot: {}", snapshot_name);
                 // Create PVC from snapshot

@@ -928,7 +928,12 @@ pub struct SorobanConfig {
 #[derive(Clone, Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ExternalDatabaseConfig {
-    pub secret_key_ref: SecretKeyRef,
+    pub host: String,
+    pub port: Option<u16>,
+    pub database: String,
+    pub user: String,
+    pub password_secret: String,
+    pub secret_key_ref: Option<SecretKeyRef>,
 }
 
 /// Reference to a key within a Kubernetes Secret
@@ -2056,6 +2061,10 @@ pub struct ManagedDatabaseConfig {
     pub pooling: Option<PgBouncerConfig>,
     #[serde(default = "default_postgres_version")]
     pub postgres_version: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub database_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username: Option<String>,
 }
 
 fn default_db_instances() -> i32 {

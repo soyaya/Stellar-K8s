@@ -63,7 +63,7 @@ pub mod predictive_scaling;
 pub mod pss;
 pub mod resource_meta;
 
-mod archive_health;
+pub(crate) mod archive_health;
 pub mod archive_prune;
 pub mod audit;
 pub mod audit_log;
@@ -76,18 +76,18 @@ pub mod conditions;
 pub mod cost;
 pub mod cross_cluster;
 pub mod cve;
-mod cve_reconciler;
+pub(crate) mod cve_reconciler;
 #[cfg(test)]
-mod cve_test;
+pub(crate) mod cve_test;
 pub mod db_pool;
 pub mod diff;
 pub mod dr;
 pub mod dr_drill;
 #[cfg(test)]
 mod dr_test;
-mod finalizers;
-mod forensic_snapshot;
-mod health;
+pub(crate) mod finalizers;
+pub(crate) mod forensic_snapshot;
+pub(crate) mod health;
 #[cfg(test)]
 mod health_test;
 pub mod kms_secret;
@@ -104,26 +104,26 @@ pub mod pruning_reconciler;
 pub mod pruning_worker;
 pub mod quorum;
 pub mod read_pool;
-mod reconciler;
+pub(crate) mod reconciler;
 #[cfg(test)]
 mod reconciler_test;
-mod remediation;
+pub(crate) mod remediation;
 #[cfg(test)]
 mod remediation_test;
-mod resources;
+pub(crate) mod resources;
 #[cfg(test)]
 mod resources_test;
 pub mod service_mesh;
 mod snapshot;
 pub mod snapshot_worker;
 pub mod storage_migration;
-pub mod sync_scale;
-pub mod sync_state_monitor;
+pub(crate) mod sync_scale;
+pub(crate) mod sync_state_monitor;
 pub mod traffic;
 #[cfg(test)]
 mod traffic_test;
 pub mod vpa;
-mod vsl;
+pub(crate) mod vsl;
 pub mod webhook_delivery;
 
 pub use archive_health::{
