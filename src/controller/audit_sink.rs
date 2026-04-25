@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use aws_sdk_s3::Client as S3Client;
-use serde::{Deserialize, Serialize};
 use base64::Engine;
+use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
 use crate::controller::audit_log::AuditEntry;
@@ -40,7 +40,9 @@ fn default_prefix() -> String {
 impl S3AuditSink {
     /// Create a new S3 audit sink from configuration.
     pub async fn new(config: S3AuditSinkConfig) -> Self {
-        let sdk_config = aws_config::load_from_env().await;
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .load()
+            .await;
         let mut builder = aws_sdk_s3::config::Builder::from(&sdk_config);
         if let Some(region) = config.region {
             builder = builder.region(aws_sdk_s3::config::Region::new(region));
@@ -77,7 +79,8 @@ impl AuditSink for S3AuditSink {
             md5_base64 = Some(base64::engine::general_purpose::STANDARD.encode(hash.0));
         }
 
-        let mut request = self.client
+        let mut request = self
+            .client
             .put_object()
             .bucket(&self.bucket)
             .key(&key)

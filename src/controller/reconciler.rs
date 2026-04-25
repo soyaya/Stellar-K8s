@@ -55,6 +55,8 @@ use super::archive_health::{
     check_history_archive_health, ArchiveHealthResult, ArchiveIntegrityCheckResult,
     ARCHIVE_LAG_THRESHOLD,
 };
+use super::audit_sink::{AuditSink, NoopAuditSink, S3AuditSink};
+use super::audit_worker::AuditWorker;
 use super::conditions;
 use super::cross_cloud_failover;
 use super::cve_reconciler;
@@ -77,8 +79,6 @@ use super::resources;
 use super::service_mesh;
 use super::vpa as vpa_controller;
 use super::vsl;
-use super::audit_worker::AuditWorker;
-use super::audit_sink::{AuditSink, S3AuditSink, NoopAuditSink};
 
 // Constants
 #[allow(dead_code)]
@@ -118,7 +118,7 @@ impl BatchSummaryReport {
         self.successes += 1;
         self.total += 1;
         self.reconciled_objects.push(object_name);
-        if self.total % self.batch_size == 0 {
+        if self.total.is_multiple_of(self.batch_size) {
             self.emit_summary();
         }
     }
@@ -128,7 +128,7 @@ impl BatchSummaryReport {
         self.failures += 1;
         self.total += 1;
         self.failure_details.push((object_name, error));
-        if self.total % self.batch_size == 0 {
+        if self.total.is_multiple_of(self.batch_size) {
             self.emit_summary();
         }
     }
@@ -353,7 +353,7 @@ pub async fn run_controller(state: Arc<ControllerState>) -> Result<()> {
         } else {
             Arc::new(NoopAuditSink)
         };
-        
+
         let audit_worker = AuditWorker::new(client.clone(), sink);
         tokio::spawn(async move {
             if let Err(e) = audit_worker.run().await {

@@ -578,13 +578,7 @@ peer-2 = "G..."
         node.spec.sidecars = Some(vec![make_sidecar("log-forwarder")]);
 
         let sts = build_statefulset_for_test(&node);
-        let containers = sts
-            .spec
-            .unwrap()
-            .template
-            .spec
-            .unwrap()
-            .containers;
+        let containers = sts.spec.unwrap().template.spec.unwrap().containers;
 
         assert!(
             containers.iter().any(|c| c.name == "log-forwarder"),
@@ -598,13 +592,7 @@ peer-2 = "G..."
         node.spec.sidecars = Some(vec![make_sidecar("metrics-proxy")]);
 
         let deploy = build_deployment_for_test(&node);
-        let containers = deploy
-            .spec
-            .unwrap()
-            .template
-            .spec
-            .unwrap()
-            .containers;
+        let containers = deploy.spec.unwrap().template.spec.unwrap().containers;
 
         assert!(
             containers.iter().any(|c| c.name == "metrics-proxy"),
@@ -622,13 +610,7 @@ peer-2 = "G..."
         ]);
 
         let sts = build_statefulset_for_test(&node);
-        let containers = sts
-            .spec
-            .unwrap()
-            .template
-            .spec
-            .unwrap()
-            .containers;
+        let containers = sts.spec.unwrap().template.spec.unwrap().containers;
 
         for name in &["log-forwarder", "metrics-proxy", "custom-proxy"] {
             assert!(
@@ -644,13 +626,7 @@ peer-2 = "G..."
         // sidecars is None by default in minimal_spec
 
         let sts = build_statefulset_for_test(&node);
-        let containers = sts
-            .spec
-            .unwrap()
-            .template
-            .spec
-            .unwrap()
-            .containers;
+        let containers = sts.spec.unwrap().template.spec.unwrap().containers;
 
         // Only the main stellar-node container should be present
         assert_eq!(
@@ -737,13 +713,7 @@ peer-2 = "G..."
         node.spec.sidecars = Some(vec![make_sidecar("log-forwarder")]);
 
         let sts = build_statefulset_for_test(&node);
-        let containers = sts
-            .spec
-            .unwrap()
-            .template
-            .spec
-            .unwrap()
-            .containers;
+        let containers = sts.spec.unwrap().template.spec.unwrap().containers;
 
         assert_ne!(
             containers[0].name, "log-forwarder",
@@ -758,16 +728,17 @@ peer-2 = "G..."
     #[test]
     fn test_network_policy_stellar_native_egress() {
         let mut node = make_node(NodeType::Validator);
-        let mut vc = ValidatorConfig::default();
-        vc.known_peers = Some(r#"["1.2.3.4:11625", "example.com:11625"]"#.to_string());
-        vc.quorum_set = Some(
-            r#"[VALIDATORS]
+        let vc = ValidatorConfig {
+            known_peers: Some(r#"["1.2.3.4:11625", "example.com:11625"]"#.to_string()),
+            quorum_set: Some(
+                r#"[VALIDATORS]
 "5.6.7.8" = "G..."
 "G..." = "G..."
 "#
-            .to_string(),
-        );
-        vc.known_peers = Some(r#"["1.2.3.4:11625", "example.com:11625"]"#.to_string());
+                .to_string(),
+            ),
+            ..Default::default()
+        };
         node.spec.validator_config = Some(vc);
 
         let config = crate::crd::types::NetworkPolicyConfig {
@@ -793,23 +764,23 @@ peer-2 = "G..."
 
         // 1. DNS egress
         let has_dns = egress.iter().any(|rule| {
-            rule.ports.as_ref().map_or(false, |ports| {
-                ports.iter().any(|p| {
-                    p.port.as_ref().map_or(false, |v| {
-                        v == &k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(53)
+            rule.ports
+                .as_ref()
+                .is_some_and(|ports| {
+                    ports.iter().any(|p| {
+                        p.port.as_ref() == Some(&k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(53))
                     })
                 })
-            })
         });
         assert!(has_dns, "must have DNS egress rule");
 
         // 2. Peer egress
         let has_peers = egress.iter().any(|rule| {
-            rule.to.as_ref().map_or(false, |to| {
+            rule.to.as_ref().is_some_and(|to| {
                 to.iter().any(|p| {
-                    p.ip_block.as_ref().map_or(false, |ip| {
-                        ip.cidr == "1.2.3.4/32" || ip.cidr == "5.6.7.8/32"
-                    })
+                    p.ip_block
+                        .as_ref()
+                        .is_some_and(|ip| ip.cidr == "1.2.3.4/32" || ip.cidr == "5.6.7.8/32")
                 })
             })
         });

@@ -449,11 +449,7 @@ pub async fn ensure_cert_manager_certificate(
         plural: "certificates".to_string(),
     };
 
-    let gvr = GroupVersionResource {
-        group: "cert-manager.io".to_string(),
-        version: "v1".to_string(),
-        resource: "certificates".to_string(),
-    };
+    let gvr = GroupVersionResource::gvr("cert-manager.io", "v1", "certificates");
     let _ = gvr; // used for documentation; ar drives the API call
 
     let mut spec = serde_json::json!({
@@ -522,10 +518,7 @@ pub async fn ensure_cert_manager_certificate(
 
 /// Return the current `resourceVersion` of the node's TLS Secret, or `None`
 /// if the Secret does not exist yet.
-pub async fn cert_secret_resource_version(
-    client: &Client,
-    node: &StellarNode,
-) -> Option<String> {
+pub async fn cert_secret_resource_version(client: &Client, node: &StellarNode) -> Option<String> {
     let namespace = node.namespace().unwrap_or_else(|| "default".to_string());
     let secret_name = format!("{}-client-cert", node.name_any());
     let api: Api<Secret> = Api::namespaced(client.clone(), &namespace);
@@ -551,10 +544,7 @@ pub async fn maybe_restart_on_cert_rotation(
 ) -> Result<bool> {
     let current_rv = cert_secret_resource_version(client, node).await;
 
-    let should_restart = match (last_known_rv, current_rv.as_deref()) {
-        (Some(prev), Some(curr)) if prev != curr => true,
-        _ => false,
-    };
+    let should_restart = matches!((last_known_rv, current_rv.as_deref()), (Some(prev), Some(curr)) if prev != curr);
 
     if !should_restart {
         return Ok(false);
@@ -569,7 +559,10 @@ pub async fn maybe_restart_on_cert_rotation(
     );
 
     if dry_run {
-        info!("[dry-run] Would restart pods for {}/{}", namespace, node_name);
+        info!(
+            "[dry-run] Would restart pods for {}/{}",
+            namespace, node_name
+        );
         return Ok(true);
     }
 
@@ -594,25 +587,19 @@ pub async fn maybe_restart_on_cert_rotation(
         PatchParams::apply("stellar-operator")
     };
 
-    use k8s_openapi::api::apps::v1::{Deployment, StatefulSet};
     use crate::crd::types::NodeType;
+    use k8s_openapi::api::apps::v1::{Deployment, StatefulSet};
 
     match node.spec.node_type {
         NodeType::Validator => {
             let api: Api<StatefulSet> = Api::namespaced(client.clone(), &namespace);
-            if let Err(e) = api
-                .patch(&node_name, &pp, &Patch::Merge(&patch))
-                .await
-            {
+            if let Err(e) = api.patch(&node_name, &pp, &Patch::Merge(&patch)).await {
                 warn!("Failed to patch StatefulSet for cert rotation restart: {e}");
             }
         }
         NodeType::Horizon | NodeType::SorobanRpc => {
             let api: Api<Deployment> = Api::namespaced(client.clone(), &namespace);
-            if let Err(e) = api
-                .patch(&node_name, &pp, &Patch::Merge(&patch))
-                .await
-            {
+            if let Err(e) = api.patch(&node_name, &pp, &Patch::Merge(&patch)).await {
                 warn!("Failed to patch Deployment for cert rotation restart: {e}");
             }
         }
@@ -813,7 +800,10 @@ mod tests {
         let prev = "12345";
         let curr = "12345";
         let should_restart = prev != curr;
-        assert!(!should_restart, "no restart when resourceVersion is unchanged");
+        assert!(
+            !should_restart,
+            "no restart when resourceVersion is unchanged"
+        );
     }
 
     #[test]
@@ -821,7 +811,10 @@ mod tests {
         let prev = "12345";
         let curr = "99999";
         let should_restart = prev != curr;
-        assert!(should_restart, "restart must be triggered when resourceVersion changes");
+        assert!(
+            should_restart,
+            "restart must be triggered when resourceVersion changes"
+        );
     }
 
     #[test]
@@ -830,7 +823,10 @@ mod tests {
         let last_known_rv: Option<&str> = None;
         let current_rv: Option<&str> = Some("12345");
         let should_restart = matches!((last_known_rv, current_rv), (Some(p), Some(c)) if p != c);
-        assert!(!should_restart, "no restart on first reconcile (no previous rv)");
+        assert!(
+            !should_restart,
+            "no restart on first reconcile (no previous rv)"
+        );
     }
 
     #[test]
