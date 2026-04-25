@@ -486,7 +486,8 @@ mod tests {
     use super::*;
     use crate::crd::{
         types::{NodeType, StellarNetwork},
-        CrossClusterConfig, PeerClusterConfig, StellarNode, StellarNodeSpec,
+        CrossClusterConfig, PeerClusterConfig, ResourceRequirements, ResourceSpec, StellarNode,
+        StellarNodeSpec, StorageConfig,
     };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 

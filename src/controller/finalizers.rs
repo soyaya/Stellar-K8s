@@ -105,7 +105,10 @@ pub fn has_finalizer(node: &StellarNode) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::crd::{NodeType, StellarNetwork, StellarNodeSpec};
+    use crate::crd::{
+        NodeType, ResourceRequirements, ResourceSpec, StellarNetwork, StellarNodeSpec,
+        StorageConfig,
+    };
     use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
     use kube::api::ObjectMeta;
 

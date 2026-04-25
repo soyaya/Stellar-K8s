@@ -1,8 +1,8 @@
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
-use tracing::info;
-use crate::Error;
 use crate::cli::BenchmarkArgs;
+use crate::Error;
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
+use tracing::info;
 
 pub async fn run_benchmark_controller_cmd(args: BenchmarkArgs) -> Result<(), Error> {
     use stellar_k8s::controller::run_benchmark_controller;

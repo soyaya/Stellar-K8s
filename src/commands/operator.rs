@@ -1,15 +1,15 @@
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use tracing::{info, warn, debug, info_span, Instrument, Level};
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-use kube::api::{Api, Patch, PatchParams, PostParams, ObjectMeta};
+use chrono::Utc;
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::MicroTime;
-use chrono::Utc;
+use kube::api::{Api, ObjectMeta, Patch, PatchParams, PostParams};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use tracing::{debug, info, info_span, warn, Instrument, Level};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
-use crate::{Error, controller, preflight, infra};
 use crate::cli::RunArgs;
 use crate::log_scrub::ScrubLayer;
+use crate::{controller, infra, preflight, Error};
 
 const LEASE_NAME: &str = "stellar-operator-leader";
 const LEASE_DURATION_SECS: i32 = 15;
@@ -284,12 +284,8 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
         let rustls_config = mtls_config
             .as_ref()
             .and_then(|cfg| {
-                crate::rest_api::build_tls_server_config(
-                    &cfg.cert_pem,
-                    &cfg.key_pem,
-                    &cfg.ca_pem,
-                )
-                .ok()
+                crate::rest_api::build_tls_server_config(&cfg.cert_pem, &cfg.key_pem, &cfg.ca_pem)
+                    .ok()
             })
             .map(axum_server::tls_rustls::RustlsConfig::from_config);
         let server_tls = rustls_config.clone();
@@ -334,10 +330,7 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
                         {
                             Ok(true) => {
                                 let secrets: Api<k8s_openapi::api::core::v1::Secret> =
-                                    Api::namespaced(
-                                        rotation_client.clone(),
-                                        &rotation_namespace,
-                                    );
+                                    Api::namespaced(rotation_client.clone(), &rotation_namespace);
                                 if let Ok(secret) =
                                     secrets.get(controller::mtls::SERVER_CERT_SECRET_NAME).await
                                 {
@@ -354,7 +347,10 @@ pub async fn run_operator(args: RunArgs) -> Result<(), Error> {
                                                 info!("TLS server config reloaded");
                                             }
                                             Err(e) => {
-                                                tracing::error!("Failed to build TLS config: {:?}", e);
+                                                tracing::error!(
+                                                    "Failed to build TLS config: {:?}",
+                                                    e
+                                                );
                                             }
                                         }
                                     }
@@ -496,7 +492,11 @@ async fn run_leader_election(
     }
 }
 
-async fn try_acquire_or_renew(leases: &Api<Lease>, namespace: &str, identity: &str) -> Result<bool, kube::Error> {
+async fn try_acquire_or_renew(
+    leases: &Api<Lease>,
+    namespace: &str,
+    identity: &str,
+) -> Result<bool, kube::Error> {
     let now = Utc::now();
 
     match leases.get(LEASE_NAME).await {

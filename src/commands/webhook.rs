@@ -1,8 +1,8 @@
-use tracing::{info, warn, info_span, Level};
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
-use crate::Error;
-use crate::cli::{WebhookArgs, LogFormat};
+use crate::cli::{LogFormat, WebhookArgs};
 use crate::log_scrub::ScrubLayer;
+use crate::Error;
+use tracing::{info, info_span, warn, Level};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[cfg(feature = "admission-webhook")]
 pub async fn run_webhook(args: WebhookArgs) -> Result<(), Error> {

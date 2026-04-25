@@ -67,6 +67,8 @@ mod archive_health;
 pub mod archive_prune;
 pub mod audit;
 pub mod audit_log;
+pub mod audit_sink;
+pub mod audit_worker;
 pub mod background_jobs;
 pub mod captive_core;
 pub mod chaos_engineering;
@@ -98,6 +100,8 @@ pub mod operator_config;
 pub mod peer_discovery;
 #[cfg(test)]
 mod peer_discovery_test;
+pub mod pruning_reconciler;
+pub mod pruning_worker;
 pub mod quorum;
 pub mod read_pool;
 mod reconciler;
@@ -112,17 +116,15 @@ mod resources_test;
 pub mod service_mesh;
 mod snapshot;
 pub mod snapshot_worker;
-pub mod pruning_worker;
-pub mod pruning_reconciler;
 pub mod storage_migration;
+pub mod sync_scale;
+pub mod sync_state_monitor;
 pub mod traffic;
 #[cfg(test)]
 mod traffic_test;
 pub mod vpa;
 mod vsl;
 pub mod webhook_delivery;
-pub mod sync_state_monitor;
-pub mod sync_scale;
 
 pub use archive_health::{
     calculate_backoff, check_archive_integrity, check_history_archive_health, ArchiveHealthResult,
@@ -159,6 +161,7 @@ pub use peer_discovery::{
     get_peers_from_config_map, trigger_peer_config_reload, PeerDiscoveryConfig,
     PeerDiscoveryManager, PeerInfo,
 };
+pub use pruning_reconciler::{reconcile_pruning, update_pruning_status};
 pub use pss::{
     ensure_namespace_pss_labels, restricted_container_security_context,
     restricted_pod_security_context, validate_pss_compliance, PssViolation,
@@ -175,6 +178,3 @@ pub use snapshot_worker::run_snapshot_worker;
 pub use webhook_delivery::{
     DeliveryRecord, WebhookDeliveryService, WebhookEndpoint, WebhookEvent, WebhookEventType,
 };
-pub use audit_log::{AdminAction, AuditEntry, AuditLog};
-pub use snapshot_worker::run_snapshot_worker;
-pub use pruning_reconciler::{reconcile_pruning, update_pruning_status};

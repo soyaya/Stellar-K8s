@@ -27,12 +27,13 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use cron::Schedule;
-use k8s_openapi::api::core::v1::{Namespace, PersistentVolumeClaim, Pod, Service};
 use k8s_openapi::api::apps::v1::StatefulSet;
+use k8s_openapi::api::core::v1::{Namespace, PersistentVolumeClaim, Pod, Service};
 use kube::{
     api::{Api, DeleteParams, ListParams, PostParams},
     Client,
 };
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgPoolOptions, PgPool, Row};
 use std::collections::HashMap;
@@ -42,7 +43,7 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 /// Configuration for automated backup verification
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupVerificationConfig {
     /// Enable automated backup verification
@@ -105,8 +106,7 @@ impl Default for BackupVerificationConfig {
 }
 
 /// Backup source configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 pub enum BackupSource {
     S3 {
         bucket: String,
@@ -136,7 +136,7 @@ impl Default for BackupSource {
 }
 
 /// Verification strategy
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum VerificationStrategy {
     /// Quick verification (checksums only)
@@ -154,7 +154,7 @@ impl Default for VerificationStrategy {
 }
 
 /// Resource limits for verification pods
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct VerificationResources {
     #[serde(default = "default_cpu_limit")]
@@ -188,7 +188,7 @@ impl Default for VerificationResources {
 }
 
 /// Report storage configuration
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportStorage {
     pub bucket: String,
@@ -211,7 +211,7 @@ pub struct VerificationReport {
     pub error_message: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum VerificationStatus {
     Success,
@@ -302,11 +302,7 @@ impl BackupVerificationScheduler {
                 .namespace
                 .as_ref()
                 .context("Node missing namespace")?;
-            let name = node
-                .metadata
-                .name
-                .as_ref()
-                .context("Node missing name")?;
+            let name = node.metadata.name.as_ref().context("Node missing name")?;
 
             // Only verify nodes with database configurations
             if node.spec.database.is_none() && node.spec.managed_database.is_none() {
@@ -326,7 +322,10 @@ impl BackupVerificationScheduler {
                 }
                 Err(e) => {
                     failure_count += 1;
-                    error!("Backup verification failed for {}/{}: {}", namespace, name, e);
+                    error!(
+                        "Backup verification failed for {}/{}: {}",
+                        namespace, name, e
+                    );
                 }
             }
         }
@@ -340,11 +339,7 @@ impl BackupVerificationScheduler {
     }
 
     /// Verify backup for a single StellarNode
-    async fn verify_node_backup(
-        &self,
-        namespace: &str,
-        name: &str,
-    ) -> Result<VerificationReport> {
+    async fn verify_node_backup(&self, namespace: &str, name: &str) -> Result<VerificationReport> {
         let start_time = Utc::now();
         let temp_namespace = format!("verify-{}-{}", name, Utc::now().timestamp());
 
@@ -705,7 +700,10 @@ impl BackupVerificationScheduler {
         }
 
         // Check 3: Verify row counts
-        if matches!(self.config.strategy, VerificationStrategy::Standard | VerificationStrategy::Full) {
+        if matches!(
+            self.config.strategy,
+            VerificationStrategy::Standard | VerificationStrategy::Full
+        ) {
             let start = std::time::Instant::now();
             let mut row_counts = HashMap::new();
 
@@ -858,7 +856,10 @@ impl BackupVerificationScheduler {
             .await
             .context("Failed to upload report to S3")?;
 
-        info!("Uploaded verification report to s3://{}/{}", storage.bucket, key);
+        info!(
+            "Uploaded verification report to s3://{}/{}",
+            storage.bucket, key
+        );
         Ok(())
     }
 

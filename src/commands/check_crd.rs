@@ -1,6 +1,6 @@
-use kube::api::Api;
-use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
 use crate::Error;
+use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
+use kube::api::Api;
 
 pub async fn run_check_crd() -> Result<(), Error> {
     const EXPECTED_VERSION: &str = "v1alpha1";

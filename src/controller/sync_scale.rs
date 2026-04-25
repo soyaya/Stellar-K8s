@@ -76,7 +76,10 @@ pub async fn reconcile_sync_scaling(
         .map_err(Error::KubeError)?;
 
     if pods.items.is_empty() {
-        debug!("No pods found for {}/{}, skipping sync scaling", namespace, name);
+        debug!(
+            "No pods found for {}/{}, skipping sync scaling",
+            namespace, name
+        );
         return Ok(false);
     }
 
@@ -168,10 +171,11 @@ fn build_resource_patch(
 /// Check whether the pod's first container already matches the desired profile
 /// to avoid redundant API calls.
 fn pod_already_has_resources(pod: &Pod, profile: &crate::crd::SyncPhaseResources) -> bool {
-    let container = pod
-        .spec
-        .as_ref()
-        .and_then(|s| s.containers.iter().find(|c| c.name == STELLAR_CORE_CONTAINER));
+    let container = pod.spec.as_ref().and_then(|s| {
+        s.containers
+            .iter()
+            .find(|c| c.name == STELLAR_CORE_CONTAINER)
+    });
 
     let Some(c) = container else {
         return false;
@@ -216,7 +220,12 @@ mod tests {
     use super::*;
     use crate::crd::SyncPhaseResources;
 
-    fn make_profile(cpu_req: &str, mem_req: &str, cpu_lim: &str, mem_lim: &str) -> SyncPhaseResources {
+    fn make_profile(
+        cpu_req: &str,
+        mem_req: &str,
+        cpu_lim: &str,
+        mem_lim: &str,
+    ) -> SyncPhaseResources {
         SyncPhaseResources {
             cpu_request: cpu_req.to_string(),
             memory_request: mem_req.to_string(),

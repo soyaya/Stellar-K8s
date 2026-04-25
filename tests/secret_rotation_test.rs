@@ -3,7 +3,7 @@ use stellar_k8s::backup::{SecretRotationConfig, SecretRotationScheduler};
 #[tokio::test]
 async fn test_secret_rotation_config_default() {
     let config = SecretRotationConfig::default();
-    
+
     assert!(!config.enabled);
     assert_eq!(config.schedule, "0 0 1 * *");
     assert_eq!(config.password_length, 32);

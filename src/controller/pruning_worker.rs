@@ -3,10 +3,9 @@
 //! Manages automated and manual pruning of Stellar history archives based on retention policies.
 //! Provides dry-run mode, safety locks, and cloud-native bucket lifecycle integration.
 
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use cron::CronExpression;
-use std::str::FromStr;
-use tracing::{debug, error, info, warn};
+use tracing::warn;
 
 use crate::crd::types::{PruningPolicy, PruningStatus};
 use crate::Error;

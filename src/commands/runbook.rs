@@ -1,7 +1,7 @@
+use crate::cli::GenerateRunbookArgs;
+use crate::Error;
 use kube::api::Api;
 use kube::Client;
-use crate::Error;
-use crate::cli::GenerateRunbookArgs;
 use stellar_k8s::runbook::generate_runbook;
 
 pub async fn run_generate_runbook(args: GenerateRunbookArgs) -> Result<(), Error> {

@@ -10,25 +10,14 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::types::{
-    AutoscalingConfig, Condition, CoreSyncState, CrossClusterConfig, DisasterRecoveryConfig,
-    DisasterRecoveryStatus, ExternalDatabaseConfig, ForensicSnapshotConfig, GlobalDiscoveryConfig,
-    HistoryMode, HorizonConfig, IngressConfig, LabelPropagationConfig, LoadBalancerConfig,
-    LogShipperConfig, ManagedDatabaseConfig, NetworkPolicyConfig, NodeType, OciSnapshotConfig,
-    PlacementConfig, PodAntiAffinityStrength, ProbeConfig, ResourceRequirements,
-    RestoreFromSnapshotConfig, RetentionPolicy, RolloutStrategy, SnapshotScheduleConfig,
-    SorobanConfig, StellarNetwork, StorageConfig, ValidatorConfig, VpaConfig,
-    ManagedDatabaseConfig, NetworkPolicyConfig, NodeType, OciSnapshotConfig, PlacementConfig,
-    PodAntiAffinityStrength, ProbeConfig, ResourceRequirements, RestoreFromSnapshotConfig,
-    RetentionPolicy, RolloutStrategy, SnapshotScheduleConfig, SorobanConfig, StellarNetwork,
-    StorageConfig, SyncStateScalingConfig, ValidatorConfig, VpaConfig,
-    AutoscalingConfig, CertManagerConfig, Condition, CrossClusterConfig,
+    AutoscalingConfig, CertManagerConfig, Condition, CoreSyncState, CrossClusterConfig,
     DisasterRecoveryConfig, DisasterRecoveryStatus, ExternalDatabaseConfig, ForensicSnapshotConfig,
     GasAutoscalingConfig, GlobalDiscoveryConfig, HistoryMode, HorizonConfig, IngressConfig,
-    LabelPropagationConfig, LoadBalancerConfig, ManagedDatabaseConfig, NetworkPolicyConfig,
-    NodeType, OciSnapshotConfig, PlacementConfig, PodAntiAffinityStrength, ProbeConfig,
-    ResourceRequirements, RestoreFromSnapshotConfig, RetentionPolicy, RolloutStrategy,
-    SnapshotScheduleConfig, SorobanConfig, StellarNetwork, StorageConfig, ValidatorConfig,
-    VpaConfig,
+    LabelPropagationConfig, LoadBalancerConfig, LogShipperConfig, ManagedDatabaseConfig,
+    NetworkPolicyConfig, NodeType, OciSnapshotConfig, PlacementConfig, PodAntiAffinityStrength,
+    ProbeConfig, ResourceRequirements, RestoreFromSnapshotConfig, RetentionPolicy, RolloutStrategy,
+    SnapshotScheduleConfig, SorobanConfig, StellarNetwork, StorageConfig, SyncStateScalingConfig,
+    ValidatorConfig, VpaConfig,
 };
 
 /// Structured validation error for `StellarNodeSpec`
@@ -353,6 +342,12 @@ pub struct StellarNodeSpec {
     /// Requires backup configuration and sufficient cluster resources.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backup_verification: Option<crate::backup::BackupVerificationConfig>,
+
+    /// History archive pruning policy for automated retention management.
+    /// Enables safe deletion of old checkpoints based on retention policies.
+    /// Only applicable to `Validator` nodes with history archives enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pruning_policy: Option<super::types::PruningPolicy>,
 }
 
 fn default_replicas() -> i32 {
@@ -411,9 +406,11 @@ impl Default for StellarNodeSpec {
             probes: None,
             cross_cloud_failover: None,
             hitless_upgrade: None,
-            pruning_policy: None,
             ebpf_config: None,
-            proximity_aware: false,
+            secret_rotation: None,
+            backup_verification: None,
+            log_shipper: None,
+            sync_state_scaling: None,
         }
     }
 }
@@ -1344,6 +1341,10 @@ pub struct StellarNodeStatus {
     /// profile is applied (`CatchingUp` or `Synced`).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sync_scaling_active_profile: Option<String>,
+
+    /// Status of the history archive pruning process.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pruning_status: Option<super::types::PruningStatus>,
 }
 
 /// BGP advertisement status information
@@ -1634,9 +1635,3 @@ mod tests {
         assert_eq!(spec.container_image(), "stellar/horizon:v2.10.0");
     }
 }
-
-    /// History archive pruning policy for automated retention management.
-    /// Enables safe deletion of old checkpoints based on retention policies.
-    /// Only applicable to `Validator` nodes with history archives enabled.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pruning_policy: Option<super::types::PruningPolicy>,

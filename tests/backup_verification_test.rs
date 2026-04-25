@@ -1,5 +1,5 @@
 use stellar_k8s::backup::{
-    BackupSource, BackupVerificationConfig, VerificationStrategy, VerificationResources,
+    BackupSource, BackupVerificationConfig, VerificationResources, VerificationStrategy,
 };
 
 #[tokio::test]

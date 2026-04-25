@@ -154,6 +154,7 @@ enum Commands {
         /// Force failover even if the node is already active
         #[arg(short, long)]
         force: bool,
+    },
     /// Execute a read-only SQL query against the node's internal database
     Sql {
         /// Name of the StellarNode
@@ -235,6 +236,7 @@ async fn run(cli: Cli) -> Result<()> {
             }
             Commands::Failover { node_name, .. } => {
                 Some(format!("Trigger failover for StellarNode '{node_name}'"))
+            }
             Commands::Sql { node_name, .. } => Some(format!(
                 "Execute SQL query against StellarNode '{node_name}' (read-only)"
             )),
@@ -381,6 +383,7 @@ async fn run(cli: Cli) -> Result<()> {
         Commands::Failover { node_name, force } => {
             let client = Client::try_default().await.map_err(Error::KubeError)?;
             failover(client, &node_name, force).await
+        }
         Commands::Sql { node_name, query } => {
             let client = Client::try_default().await.map_err(Error::KubeError)?;
             let namespace = cli.namespace.as_deref().unwrap_or("default");

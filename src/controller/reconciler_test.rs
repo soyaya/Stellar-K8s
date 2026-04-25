@@ -12,9 +12,9 @@ mod tests {
     use super::super::reconciler::*;
     use crate::controller::{AuditLog, JobRegistry};
     use crate::crd::{
-        CaptiveCoreConfig, Condition, HorizonConfig, NodeType, ResourceRequirements, ResourceSpec,
-        SorobanConfig, StellarNetwork, StellarNode, StellarNodeSpec, StorageConfig,
-        ValidatorConfig,
+        CaptiveCoreConfig, Condition, HorizonConfig, ManagedDatabaseConfig, NodeType,
+        ResourceRequirements, ResourceSpec, SorobanConfig, StellarNetwork, StellarNode,
+        StellarNodeSpec, StorageConfig, ValidatorConfig,
     };
     use crate::error::Error;
     use kube::api::ObjectMeta;
@@ -372,8 +372,6 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             job_registry: Arc::new(JobRegistry::new()),
             audit_log: Arc::new(AuditLog::new()),
-            job_registry: Arc::new(crate::controller::background_jobs::JobRegistry::new()),
-            audit_log: Arc::new(crate::controller::audit_log::AuditLog::new()),
             oidc_config: None,
         });
 
@@ -419,8 +417,6 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             job_registry: Arc::new(JobRegistry::new()),
             audit_log: Arc::new(AuditLog::new()),
-            job_registry: Arc::new(crate::controller::background_jobs::JobRegistry::new()),
-            audit_log: Arc::new(crate::controller::audit_log::AuditLog::new()),
             oidc_config: None,
         });
 
@@ -465,8 +461,6 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             job_registry: Arc::new(JobRegistry::new()),
             audit_log: Arc::new(AuditLog::new()),
-            job_registry: Arc::new(crate::controller::background_jobs::JobRegistry::new()),
-            audit_log: Arc::new(crate::controller::audit_log::AuditLog::new()),
             oidc_config: None,
         });
 
@@ -703,8 +697,6 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             job_registry: Arc::new(JobRegistry::new()),
             audit_log: Arc::new(AuditLog::new()),
-            job_registry: Arc::new(crate::controller::background_jobs::JobRegistry::new()),
-            audit_log: Arc::new(crate::controller::audit_log::AuditLog::new()),
             oidc_config: None,
         };
 
@@ -745,8 +737,6 @@ VALIDATORS=["VALIDATOR1", "VALIDATOR2"]"#
             last_event_received: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             job_registry: Arc::new(JobRegistry::new()),
             audit_log: Arc::new(AuditLog::new()),
-            job_registry: Arc::new(crate::controller::background_jobs::JobRegistry::new()),
-            audit_log: Arc::new(crate::controller::audit_log::AuditLog::new()),
             oidc_config: None,
         };
 

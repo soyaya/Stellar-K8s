@@ -6,7 +6,7 @@
 
 use chrono::Utc;
 use kube::client::Client;
-use std::sync::Arc;
+use kube::ResourceExt;
 use tracing::{debug, error, info, warn};
 
 use crate::crd::StellarNode;
@@ -46,10 +46,7 @@ pub async fn reconcile_pruning(
     let worker = match PruningWorker::new(pruning_policy.clone()) {
         Ok(w) => w,
         Err(e) => {
-            error!(
-                "Invalid pruning policy for {}/{}: {}",
-                namespace, name, e
-            );
+            error!("Invalid pruning policy for {}/{}: {}", namespace, name, e);
             return Err(e);
         }
     };

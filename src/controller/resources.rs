@@ -2100,14 +2100,11 @@ fn build_pod_template(
     if let Some(ls) = &node.spec.log_shipper {
         if ls.enabled {
             // Shared emptyDir volume for log files written by the main container.
-            pod_spec
-                .volumes
-                .get_or_insert_with(Vec::new)
-                .push(Volume {
-                    name: "stellar-logs".to_string(),
-                    empty_dir: Some(k8s_openapi::api::core::v1::EmptyDirVolumeSource::default()),
-                    ..Default::default()
-                });
+            pod_spec.volumes.get_or_insert_with(Vec::new).push(Volume {
+                name: "stellar-logs".to_string(),
+                empty_dir: Some(k8s_openapi::api::core::v1::EmptyDirVolumeSource::default()),
+                ..Default::default()
+            });
 
             // Mount the shared log volume into the main container.
             if let Some(main) = pod_spec.containers.first_mut() {
@@ -2188,10 +2185,7 @@ fn build_pod_template(
             }
 
             let sidecar_image = ls.image.clone().unwrap_or_else(|| {
-                format!(
-                    "ghcr.io/stellar/stellar-k8s:{}",
-                    env!("CARGO_PKG_VERSION")
-                )
+                format!("ghcr.io/stellar/stellar-k8s:{}", env!("CARGO_PKG_VERSION"))
             });
 
             pod_spec.containers.push(Container {
@@ -2239,6 +2233,9 @@ fn build_pod_template(
                     ..Default::default()
                 }),
                 ..Default::default()
+            });
+        }
+    }
     // NEW: Inject ebpf-exporter sidecar (Validators only, when enabled)
     // ==========================================================================
     if let Some(ebpf_cfg) = &node.spec.ebpf_config {
@@ -3869,31 +3866,6 @@ pub(crate) fn build_network_policy(
             } else {
                 Some(egress_rules)
             },
-        spec: Some({
-            NetworkPolicySpec {
-                pod_selector: LabelSelector {
-                    match_labels: Some(BTreeMap::from([
-                        ("app.kubernetes.io/instance".to_string(), node.name_any()),
-                        (
-                            "app.kubernetes.io/name".to_string(),
-                            "stellar-node".to_string(),
-                        ),
-                    ])),
-                    ..Default::default()
-                },
-                // Enforce both Ingress and Egress so the egress deny-by-default takes effect.
-                policy_types: Some(vec!["Ingress".to_string(), "Egress".to_string()]),
-                ingress: if ingress_rules.is_empty() {
-                    None
-                } else {
-                    Some(ingress_rules)
-                },
-                egress: if egress_rules.is_empty() {
-                    None
-                } else {
-                    Some(egress_rules)
-                },
-            }
         }),
     }
 }

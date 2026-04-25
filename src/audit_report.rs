@@ -31,7 +31,6 @@ impl AuditReporter {
         resource_filter: Option<String>,
         actor_filter: Option<String>,
     ) -> Result<()> {
-
         let objects = self
             .client
             .list_objects_v2()
@@ -76,8 +75,6 @@ impl AuditReporter {
                             .map_or(true, |r| entry.resource.contains(r));
                         let matches_actor =
                             actor_filter.as_ref().map_or(true, |a| entry.actor == *a);
-                            .is_none_or(|r| entry.resource.contains(r));
-                       
 
                         if matches_resource && matches_actor {
                             entries.push(entry);

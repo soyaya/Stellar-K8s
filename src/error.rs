@@ -9,27 +9,27 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum Error {
     /// Triggered when an operation with the Kubernetes API server fails.
-    /// This includes connection timeouts, permission denied (RBAC), or 
+    /// This includes connection timeouts, permission denied (RBAC), or
     /// resource conflicts during a Patch or Update.
     #[error("[SK8S-001] Kubernetes API error: {0}")]
     KubeError(#[from] kube::Error),
 
-    /// Occurs when failing to parse JSON from the Kubernetes API or 
+    /// Occurs when failing to parse JSON from the Kubernetes API or
     /// when serializing internal state (like status conditions) into the CRD.
     #[error("[SK8S-002] Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 
-    /// Represents a failure during the resource deletion phase. 
+    /// Represents a failure during the resource deletion phase.
     /// If a finalizer cannot be removed, the resource will remain in a 'Terminating' state.
     #[error("[SK8S-003] Finalizer error: {0}")]
     FinalizerError(String),
 
-    /// A catch-all for invalid operator configuration, such as missing 
+    /// A catch-all for invalid operator configuration, such as missing
     /// environment variables or malformed ConfigMaps used for feature flags.
     #[error("[SK8S-004] Configuration error: {0}")]
     ConfigError(String),
 
-    /// Triggered during pre-reconciliation validation if the StellarNode spec 
+    /// Triggered during pre-reconciliation validation if the StellarNode spec
     /// violates business logic (e.g., mutually exclusive flags or invalid replicas).
     #[error("[SK8S-005] Node validation error: {0}")]
     ValidationError(String),
@@ -99,7 +99,7 @@ pub enum Error {
     #[error("[SK8S-020] Zip error: {0}")]
     ZipError(#[from] zip::result::ZipError),
 
-    /// A security violation where nodes from different networks (e.g., Mainnet and Testnet) 
+    /// A security violation where nodes from different networks (e.g., Mainnet and Testnet)
     /// are detected in the same namespace, which could lead to ledger contamination.
     #[error("[SK8S-021] {0}")]
     NetworkSafetyViolation(#[from] crate::controller::network_isolation::NetworkSafetyViolation),

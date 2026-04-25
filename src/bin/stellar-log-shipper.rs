@@ -123,9 +123,8 @@ async fn upload_to_s3(
         signed_headers.push_str(";x-amz-security-token");
     }
 
-    let canonical_request = format!(
-        "PUT\n/{bucket}/{key}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
-    );
+    let canonical_request =
+        format!("PUT\n/{bucket}/{key}\n\n{canonical_headers}\n{signed_headers}\n{payload_hash}");
 
     // String to sign
     let scope = format!("{date_str}/{region}/s3/aws4_request");
@@ -348,8 +347,8 @@ async fn tail_and_ship(
             }
         }
 
-        let should_flush = batch.lines.len() >= cfg.batch_size_lines
-            || Instant::now() >= flush_deadline;
+        let should_flush =
+            batch.lines.len() >= cfg.batch_size_lines || Instant::now() >= flush_deadline;
 
         if should_flush && !batch.is_empty() {
             flush_batch(cfg, http, &batch, &seq).await;

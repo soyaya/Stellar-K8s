@@ -8,7 +8,7 @@ use crate::crd::StellarNode;
 use crate::error::Result;
 use chrono::{Local, NaiveTime};
 use sqlx::PgPool;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 pub struct MaintenanceController {
     coordinator: MaintenanceCoordinator,

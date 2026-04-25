@@ -30,6 +30,7 @@ use kube::{
     Client,
 };
 use rand::{distributions::Alphanumeric, Rng};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{postgres::PgPoolOptions, PgPool};
@@ -40,7 +41,7 @@ use tokio::time::sleep;
 use tracing::{error, info, warn};
 
 /// Configuration for automated secret rotation
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretRotationConfig {
     /// Enable automated secret rotation
@@ -120,7 +121,7 @@ pub struct RotationEvent {
     pub password_hash: String, // SHA256 hash for verification
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum RotationStatus {
     Started,
@@ -199,11 +200,7 @@ impl SecretRotationScheduler {
                 .namespace
                 .as_ref()
                 .context("Node missing namespace")?;
-            let name = node
-                .metadata
-                .name
-                .as_ref()
-                .context("Node missing name")?;
+            let name = node.metadata.name.as_ref().context("Node missing name")?;
 
             // Check if node has database configuration
             if node.spec.database.is_none() && node.spec.managed_database.is_none() {
@@ -251,29 +248,34 @@ impl SecretRotationScheduler {
         };
 
         // Determine database configuration
-        let (db_host, db_port, db_name, db_user, secret_name) = if let Some(db_config) =
-            &node.spec.database
-        {
-            (
-                db_config.host.clone(),
-                db_config.port.unwrap_or(5432),
-                db_config.database.clone(),
-                db_config.user.clone(),
-                db_config.password_secret.clone(),
-            )
-        } else if let Some(managed_db) = &node.spec.managed_database {
-            // For managed databases, construct connection info
-            let db_host = format!("{}-postgres-rw.{}.svc.cluster.local", name, namespace);
-            (
-                db_host,
-                5432,
-                managed_db.database_name.clone().unwrap_or_else(|| "stellar".to_string()),
-                managed_db.username.clone().unwrap_or_else(|| "stellar".to_string()),
-                format!("{}-db-credentials", name),
-            )
-        } else {
-            return Ok(()); // No database configuration
-        };
+        let (db_host, db_port, db_name, db_user, secret_name) =
+            if let Some(db_config) = &node.spec.database {
+                (
+                    db_config.host.clone(),
+                    db_config.port.unwrap_or(5432),
+                    db_config.database.clone(),
+                    db_config.user.clone(),
+                    db_config.password_secret.clone(),
+                )
+            } else if let Some(managed_db) = &node.spec.managed_database {
+                // For managed databases, construct connection info
+                let db_host = format!("{}-postgres-rw.{}.svc.cluster.local", name, namespace);
+                (
+                    db_host,
+                    5432,
+                    managed_db
+                        .database_name
+                        .clone()
+                        .unwrap_or_else(|| "stellar".to_string()),
+                    managed_db
+                        .username
+                        .clone()
+                        .unwrap_or_else(|| "stellar".to_string()),
+                    format!("{}-db-credentials", name),
+                )
+            } else {
+                return Ok(()); // No database configuration
+            };
 
         event.database_user = db_user.clone();
         event.secret_name = secret_name.clone();
@@ -362,7 +364,10 @@ impl SecretRotationScheduler {
             Ok(_) => {
                 event.status = RotationStatus::Completed;
                 self.log_event(&event).await;
-                info!("Secret rotation completed successfully for {}/{}", namespace, name);
+                info!(
+                    "Secret rotation completed successfully for {}/{}",
+                    namespace, name
+                );
             }
             Err(e) => {
                 event.status = RotationStatus::Failed;
@@ -559,20 +564,21 @@ impl SecretRotationScheduler {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_password_generation() {
+    #[tokio::test]
+    async fn test_password_generation() {
         let config = SecretRotationConfig::default();
-        let scheduler = SecretRotationScheduler::new(config.clone(), Client::try_default().unwrap());
+        let scheduler =
+            SecretRotationScheduler::new(config.clone(), Client::try_default().await.unwrap());
 
         let password = scheduler.generate_secure_password();
         assert_eq!(password.len(), config.password_length);
         assert!(password.chars().all(|c| c.is_alphanumeric()));
     }
 
-    #[test]
-    fn test_password_hashing() {
+    #[tokio::test]
+    async fn test_password_hashing() {
         let config = SecretRotationConfig::default();
-        let scheduler = SecretRotationScheduler::new(config, Client::try_default().unwrap());
+        let scheduler = SecretRotationScheduler::new(config, Client::try_default().await.unwrap());
 
         let password = "test_password_123";
         let hash = scheduler.hash_password(password);

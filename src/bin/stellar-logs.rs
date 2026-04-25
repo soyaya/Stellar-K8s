@@ -216,9 +216,8 @@ impl S3Client {
             .map(|(p, q)| (p.to_string(), q.to_string()))
             .unwrap_or_else(|| (path_and_query.clone(), String::new()));
 
-        let canonical_request = format!(
-            "GET\n{path}\n{query}\n{canonical_headers}\n{signed_headers}\n{payload_hash}"
-        );
+        let canonical_request =
+            format!("GET\n{path}\n{query}\n{canonical_headers}\n{signed_headers}\n{payload_hash}");
 
         let scope = format!("{date_str}/{}/s3/aws4_request", self.region);
         let string_to_sign = {
@@ -336,7 +335,10 @@ async fn cmd_fetch(region: &str, args: &FetchArgs) -> Result<()> {
     let keys: Vec<String> = if let Some(key) = &args.key {
         vec![key.clone()]
     } else {
-        let node = args.node.as_deref().context("--node required when --key is not set")?;
+        let node = args
+            .node
+            .as_deref()
+            .context("--node required when --key is not set")?;
         let date = args.date.clone().unwrap_or_else(today);
         let prefix = format!("{}/{}/{}/", args.prefix, date, node);
         s3.list_objects(&args.bucket, &prefix).await?
@@ -387,7 +389,10 @@ async fn cmd_search(region: &str, args: &SearchArgs) -> Result<()> {
         }
     }
 
-    eprintln!("\n{total_matches} match(es) across {} archive(s).", keys.len());
+    eprintln!(
+        "\n{total_matches} match(es) across {} archive(s).",
+        keys.len()
+    );
     Ok(())
 }
 

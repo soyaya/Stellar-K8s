@@ -10,7 +10,7 @@
 //! `trace_id` and `span_id` W3C hex fields to every log event.  This lets
 //! operators correlate log lines with traces in Honeycomb / Jaeger / Tempo.
 
-use opentelemetry::trace::{TraceContextExt, TraceResult};
+use opentelemetry::trace::TraceResult;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::export::trace::SpanData;

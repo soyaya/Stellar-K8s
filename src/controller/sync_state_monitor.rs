@@ -129,7 +129,10 @@ pub async fn resolve_node_sync_state(client: &Client, node: &StellarNode) -> Cor
             }
         },
         None => {
-            debug!("No ready pod IP for {}/{}, sync state unknown", namespace, name);
+            debug!(
+                "No ready pod IP for {}/{}, sync state unknown",
+                namespace, name
+            );
             CoreSyncState::Unknown
         }
     }

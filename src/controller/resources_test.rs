@@ -763,14 +763,13 @@ peer-2 = "G..."
         let egress = spec.egress.expect("egress rules must be present");
 
         // 1. DNS egress
-
-            rule.ports
-                .as_ref()
-                .is_some_and(|ports| {
-                    ports.iter().any(|p| {
-                        p.port.as_ref() == Some(&k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(53))
-                    })
+        let has_dns = egress.iter().any(|rule| {
+            rule.ports.as_ref().is_some_and(|ports| {
+                ports.iter().any(|p| {
+                    p.port.as_ref()
+                        == Some(&k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(53))
                 })
+            })
         });
         assert!(has_dns, "must have DNS egress rule");
 

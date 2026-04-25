@@ -544,7 +544,8 @@ pub async fn maybe_restart_on_cert_rotation(
 ) -> Result<bool> {
     let current_rv = cert_secret_resource_version(client, node).await;
 
-    let should_restart = matches!((last_known_rv, current_rv.as_deref()), (Some(prev), Some(curr)) if prev != curr);
+    let should_restart =
+        matches!((last_known_rv, current_rv.as_deref()), (Some(prev), Some(curr)) if prev != curr);
 
     if !should_restart {
         return Ok(false);

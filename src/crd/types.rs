@@ -591,8 +591,12 @@ pub struct LogShipperConfig {
     pub image: Option<String>,
 }
 
-fn default_batch_size_lines() -> u32 { 5000 }
-fn default_flush_interval_secs() -> u64 { 60 }
+fn default_batch_size_lines() -> u32 {
+    5000
+}
+fn default_flush_interval_secs() -> u64 {
+    60
+}
 /// Observed sync state of a Stellar Core node, derived from the `/info` HTTP endpoint.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 pub enum CoreSyncState {
@@ -2623,14 +2627,10 @@ impl PruningPolicy {
         // Ensure exactly one retention policy is specified
         match (self.retention_days, self.retention_ledgers) {
             (None, None) => {
-                return Err(
-                    "Must specify either retention_days or retention_ledgers".to_string(),
-                );
+                return Err("Must specify either retention_days or retention_ledgers".to_string());
             }
             (Some(_), Some(_)) => {
-                return Err(
-                    "Cannot specify both retention_days and retention_ledgers".to_string(),
-                );
+                return Err("Cannot specify both retention_days and retention_ledgers".to_string());
             }
             _ => {}
         }
@@ -2684,6 +2684,7 @@ pub struct PruningStatus {
 
     /// Whether the last operation was a dry-run
     pub dry_run: Option<bool>,
+}
 // ── Gas Autoscaling default functions ────────────────────────────────────────
 
 fn default_gas_min_replicas() -> u32 {

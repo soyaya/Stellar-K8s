@@ -4,9 +4,9 @@
 //! subcommands, arguments, and environment variable mappings.
 
 use clap::{Parser, Subcommand};
-use stellar_k8s::{incident};
-use stellar_k8s::controller::archive_prune::{PruneArchiveArgs};
-use stellar_k8s::controller::diff::{DiffArgs};
+use stellar_k8s::controller::archive_prune::PruneArchiveArgs;
+use stellar_k8s::controller::diff::DiffArgs;
+use stellar_k8s::incident;
 
 #[derive(Parser, Debug)]
 #[command(
@@ -580,4 +580,3 @@ mod cli_tests {
         assert!(parsed.offline);
     }
 }
-

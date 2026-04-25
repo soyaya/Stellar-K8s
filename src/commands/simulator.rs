@@ -1,7 +1,7 @@
+use crate::cli::{SimulatorCli, SimulatorCmd, SimulatorUpArgs};
+use crate::Error;
 use std::env;
 use std::process::Command;
-use crate::Error;
-use crate::cli::{SimulatorCli, SimulatorCmd, SimulatorUpArgs};
 
 pub async fn run_simulator(cli: SimulatorCli) -> Result<(), Error> {
     match cli.command {

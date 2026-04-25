@@ -22,7 +22,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::Utc;
 use k8s_openapi::api::policy::v1::PodDisruptionBudget;
 
 use futures::StreamExt;
@@ -51,37 +50,21 @@ use crate::error::{Error, Result};
 use crate::infra;
 
 use super::archive_health::{
-    calculate_backoff, check_archive_integrity, check_archive_integrity_random,
-    check_history_archive_health, ArchiveHealthResult, ArchiveIntegrityCheckResult,
-    ARCHIVE_LAG_THRESHOLD,
+    check_archive_integrity, check_archive_integrity_random, ArchiveHealthResult,
+    ArchiveIntegrityCheckResult, ARCHIVE_LAG_THRESHOLD,
 };
 use super::audit_sink::{AuditSink, NoopAuditSink, S3AuditSink};
 use super::audit_worker::AuditWorker;
 use super::conditions;
-use super::cross_cloud_failover;
-use super::cve_reconciler;
-use super::dr;
-use super::dr_drill;
 use super::finalizers::STELLAR_NODE_FINALIZER;
 use super::health;
-use super::kms_secret;
-use super::label_propagation::LabelPropagator;
 use super::maintenance;
 #[cfg(feature = "metrics")]
 use super::metrics;
-use super::mtls;
-use super::oci_snapshot;
-use super::operator_config::{hardcoded_defaults, OperatorConfig};
-use super::peer_discovery;
-use super::pss;
-use super::quorum;
-use super::remediation;
+use super::operator_config::OperatorConfig;
 use super::resources;
 use super::service_mesh;
 use super::vpa as vpa_controller;
-use super::vsl;
-use super::sync_state_monitor;
-use super::sync_scale;
 
 // Constants
 #[allow(dead_code)]
@@ -633,7 +616,7 @@ where
 ///   in a way that risks ledger corruption.
 ///
 /// # Error Handling
-/// Returns a `Result<Action, Error>`. Retriable errors (like K8s API timeouts) 
+/// Returns a `Result<Action, Error>`. Retriable errors (like K8s API timeouts)
 /// return an `Action::requeue` to retry with exponential backoff.
 #[instrument(skip(obj, ctx), fields(name = obj.metadata.name, namespace = obj.metadata.namespace))]
 async fn reconcile(obj: Arc<StellarNode>, ctx: Arc<ControllerState>) -> Result<Action> {
@@ -1764,13 +1747,9 @@ pub(crate) async fn apply_stellar_node(
     // an in-place pod patch (no pod restart required).
     if let Some(scaling_config) = &node.spec.sync_state_scaling {
         if scaling_config.enabled && node.spec.node_type == NodeType::Validator {
-            let sync_state =
-                sync_state_monitor::resolve_node_sync_state(client, node).await;
+            let sync_state = sync_state_monitor::resolve_node_sync_state(client, node).await;
 
-            info!(
-                "Sync state for {}/{}: {}",
-                namespace, name, sync_state
-            );
+            info!("Sync state for {}/{}: {}", namespace, name, sync_state);
 
             // Persist the observed sync state to the CRD status.
             {
@@ -1790,7 +1769,10 @@ pub(crate) async fn apply_stellar_node(
                     )
                     .await
                 {
-                    warn!("Failed to patch syncState status for {}/{}: {}", namespace, name, e);
+                    warn!(
+                        "Failed to patch syncState status for {}/{}: {}",
+                        namespace, name, e
+                    );
                 }
             }
 
@@ -1800,13 +1782,8 @@ pub(crate) async fn apply_stellar_node(
                 ActionType::Update,
                 "Sync-state resource scaling",
                 async {
-                    sync_scale::reconcile_sync_scaling(
-                        client,
-                        node,
-                        scaling_config,
-                        &sync_state,
-                    )
-                    .await?;
+                    sync_scale::reconcile_sync_scaling(client, node, scaling_config, &sync_state)
+                        .await?;
                     Ok(())
                 },
             )
@@ -1841,10 +1818,7 @@ pub(crate) async fn apply_stellar_node(
                             debug!("Pruning not scheduled to run for {}/{}", namespace, name);
                         }
                         Err(e) => {
-                            warn!(
-                                "Archive pruning failed for {}/{}: {}",
-                                namespace, name, e
-                            );
+                            warn!("Archive pruning failed for {}/{}: {}", namespace, name, e);
                         }
                     }
                     Ok(())

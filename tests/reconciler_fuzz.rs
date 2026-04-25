@@ -64,8 +64,8 @@ fn default_storage() -> StorageConfig {
         retention_policy: Default::default(),
         annotations: None,
         node_affinity: None,
-        ..Default::default()
         snapshot_ref: None,
+        ..Default::default()
     }
 }
 
@@ -89,10 +89,10 @@ fn base_validator_spec() -> StellarNodeSpec {
             kms_config: None,
             vl_source: None,
             hsm_config: None,
-            ..Default::default()
             external_dns: None,
             known_peers: None,
             quorum_optimization: None,
+            ..Default::default()
         }),
         horizon_config: None,
         soroban_config: None,
@@ -130,13 +130,13 @@ fn base_validator_spec() -> StellarNodeSpec {
         pod_anti_affinity: Default::default(),
         label_propagation: None,
         sidecars: None,
-        ..Default::default()
         cert_manager: None,
         cross_cloud_failover: None,
         ebpf_config: None,
         proximity_aware: false,
         probes: None,
         hitless_upgrade: None,
+        ..Default::default()
     }
 }
 
@@ -193,13 +193,13 @@ fn base_horizon_spec() -> StellarNodeSpec {
         pod_anti_affinity: Default::default(),
         label_propagation: None,
         sidecars: None,
-        ..Default::default()
         cert_manager: None,
         cross_cloud_failover: None,
         ebpf_config: None,
         proximity_aware: false,
         probes: None,
         hitless_upgrade: None,
+        ..Default::default()
     }
 }
 
@@ -256,13 +256,13 @@ fn base_soroban_spec() -> StellarNodeSpec {
         pod_anti_affinity: Default::default(),
         label_propagation: None,
         sidecars: None,
-        ..Default::default()
         cert_manager: None,
         cross_cloud_failover: None,
         ebpf_config: None,
         proximity_aware: false,
         probes: None,
         hitless_upgrade: None,
+        ..Default::default()
     }
 }
 

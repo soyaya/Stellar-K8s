@@ -1,20 +1,20 @@
 mod cli;
 mod commands;
 
-use std::process;
-use clap::Parser;
 use crate::cli::{Args, Commands};
-use crate::commands::simulator::run_simulator;
-use crate::commands::info::run_info;
-use crate::commands::check_crd::run_check_crd;
-use crate::commands::runbook::run_generate_runbook;
 use crate::commands::benchmark::run_benchmark_controller_cmd;
-use crate::commands::webhook::run_webhook;
+use crate::commands::check_crd::run_check_crd;
+use crate::commands::info::run_info;
 use crate::commands::operator::run_operator;
+use crate::commands::runbook::run_generate_runbook;
+use crate::commands::simulator::run_simulator;
+use crate::commands::webhook::run_webhook;
+use clap::Parser;
+use std::process;
 
-use stellar_k8s::version_check;
 use stellar_k8s::controller::archive_prune::prune_archive;
 use stellar_k8s::controller::diff::diff;
+use stellar_k8s::version_check;
 use stellar_k8s::{incident, Error};
 
 #[tokio::main]

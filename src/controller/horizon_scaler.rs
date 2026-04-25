@@ -61,7 +61,7 @@ impl HorizonRateLimitScaler {
         let rate_429 = self.fetch_429_rate(node_name).await?;
 
         let threshold = 1.0; // 1 request per second hitting 429
-        let mut target_replicas = self.compute_replicas(current_replicas, rate_429, threshold);
+        let target_replicas = self.compute_replicas(current_replicas, rate_429, threshold);
 
         // If predictive scaling is enabled, adjust target
         if let Some(ref autoscaling) = node.spec.autoscaling {
