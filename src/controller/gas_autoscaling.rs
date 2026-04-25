@@ -314,8 +314,8 @@ impl GasTrendCalculator {
         }
 
         let mut score = samples[0] as f64;
-        for i in 1..samples.len() {
-            score = alpha * samples[i] as f64 + (1.0 - alpha) * score;
+        for sample in samples.iter().skip(1) {
+            score = alpha * *sample as f64 + (1.0 - alpha) * score;
         }
 
         Some(score)

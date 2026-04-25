@@ -1,6 +1,5 @@
 use aws_sdk_s3::Client as S3Client;
 use comfy_table::Table;
-use futures::StreamExt;
 use serde_json::Value;
 use tracing::error;
 
@@ -15,7 +14,9 @@ pub struct AuditReporter {
 
 impl AuditReporter {
     pub async fn new(bucket: String, prefix: String) -> Self {
-        let sdk_config = aws_config::load_from_env().await;
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .load()
+            .await;
         let client = S3Client::new(&sdk_config);
         Self {
             client,
@@ -30,7 +31,8 @@ impl AuditReporter {
         resource_filter: Option<String>,
         actor_filter: Option<String>,
     ) -> Result<()> {
-        let mut objects = self
+
+        let objects = self
             .client
             .list_objects_v2()
             .bucket(&self.bucket)
@@ -74,6 +76,8 @@ impl AuditReporter {
                             .map_or(true, |r| entry.resource.contains(r));
                         let matches_actor =
                             actor_filter.as_ref().map_or(true, |a| entry.actor == *a);
+                            .is_none_or(|r| entry.resource.contains(r));
+                       
 
                         if matches_resource && matches_actor {
                             entries.push(entry);

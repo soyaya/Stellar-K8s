@@ -2036,7 +2036,7 @@ fn build_pod_template(
     // ==========================================================================
     if let Some(ebpf_cfg) = &node.spec.ebpf_config {
         if ebpf_cfg.enabled && node.spec.node_type == NodeType::Validator {
-            let mut exporter_args = vec!["--config.file=/ebpf/ebpf-exporter.yaml".to_string()];
+            let exporter_args = vec!["--config.file=/ebpf/ebpf-exporter.yaml".to_string()];
 
             let sidecar_image = "cloudflare/ebpf_exporter:latest".to_string();
 
@@ -2710,7 +2710,7 @@ fn build_horizon_migration_container(node: &StellarNode) -> Container {
 /// Supports `.tar.gz` and `.tar.zst` archives.
 /// For S3 URLs, AWS CLI credentials are injected from `credentials_secret_ref`.
 fn build_snapshot_restore_container(
-    node: &StellarNode,
+    _node: &StellarNode,
     backup_url: &str,
     credentials_secret_ref: Option<&str>,
     restore_image: Option<&str>,
@@ -3640,7 +3640,7 @@ pub(crate) fn build_network_policy(
             &node.spec.resource_meta,
         ),
         spec: Some({
-            let mut policy_spec = NetworkPolicySpec {
+            NetworkPolicySpec {
                 pod_selector: LabelSelector {
                     match_labels: Some(BTreeMap::from([
                         ("app.kubernetes.io/instance".to_string(), node.name_any()),
@@ -3663,8 +3663,7 @@ pub(crate) fn build_network_policy(
                 } else {
                     Some(egress_rules)
                 },
-            };
-            policy_spec
+            }
         }),
     }
 }

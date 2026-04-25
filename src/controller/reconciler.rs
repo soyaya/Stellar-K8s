@@ -118,7 +118,7 @@ impl BatchSummaryReport {
         self.successes += 1;
         self.total += 1;
         self.reconciled_objects.push(object_name);
-        if self.total % self.batch_size == 0 {
+        if self.total.is_multiple_of(self.batch_size) {
             self.emit_summary();
         }
     }
@@ -128,7 +128,7 @@ impl BatchSummaryReport {
         self.failures += 1;
         self.total += 1;
         self.failure_details.push((object_name, error));
-        if self.total % self.batch_size == 0 {
+        if self.total.is_multiple_of(self.batch_size) {
             self.emit_summary();
         }
     }

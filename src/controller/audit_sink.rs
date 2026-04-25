@@ -40,7 +40,9 @@ fn default_prefix() -> String {
 impl S3AuditSink {
     /// Create a new S3 audit sink from configuration.
     pub async fn new(config: S3AuditSinkConfig) -> Self {
-        let sdk_config = aws_config::load_from_env().await;
+        let sdk_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .load()
+            .await;
         let mut builder = aws_sdk_s3::config::Builder::from(&sdk_config);
         if let Some(region) = config.region {
             builder = builder.region(aws_sdk_s3::config::Region::new(region));

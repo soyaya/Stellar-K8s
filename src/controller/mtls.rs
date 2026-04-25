@@ -449,11 +449,7 @@ pub async fn ensure_cert_manager_certificate(
         plural: "certificates".to_string(),
     };
 
-    let gvr = GroupVersionResource {
-        group: "cert-manager.io".to_string(),
-        version: "v1".to_string(),
-        resource: "certificates".to_string(),
-    };
+    let gvr = GroupVersionResource::gvr("cert-manager.io", "v1", "certificates");
     let _ = gvr; // used for documentation; ar drives the API call
 
     let mut spec = serde_json::json!({
@@ -548,10 +544,7 @@ pub async fn maybe_restart_on_cert_rotation(
 ) -> Result<bool> {
     let current_rv = cert_secret_resource_version(client, node).await;
 
-    let should_restart = match (last_known_rv, current_rv.as_deref()) {
-        (Some(prev), Some(curr)) if prev != curr => true,
-        _ => false,
-    };
+    let should_restart = matches!((last_known_rv, current_rv.as_deref()), (Some(prev), Some(curr)) if prev != curr);
 
     if !should_restart {
         return Ok(false);
