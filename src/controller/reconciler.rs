@@ -943,7 +943,7 @@ pub(crate) fn apply_stellar_node(
             )
             .await?;
 
-            apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Maintenance)", clones: [propagated_labels], move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Maintenance)", clones: [propagated_labels], move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                     update_status(
                         &client,
                         &node,
@@ -1064,7 +1064,7 @@ pub(crate) fn apply_stellar_node(
                                 &node,
                                 ActionType::Update,
                                 "Status (Archive Health Failed)",
-                                move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                                move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                                     update_archive_health_status(&client, &node, &health_result)
                                         .await?;
                                     Ok(())
@@ -1091,7 +1091,7 @@ pub(crate) fn apply_stellar_node(
                                 &node,
                                 ActionType::Update,
                                 "Status (Archive Health Passed)",
-                                move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                                move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                                     update_archive_health_status(&client, &node, &health_result)
                                         .await?;
                                     Ok(())
@@ -1205,7 +1205,7 @@ pub(crate) fn apply_stellar_node(
         }
 
         // Update status to Creating
-        apply_or_emit!(&ctx, &node, ActionType::Update, "Status (DR)", move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+        apply_or_emit!(&ctx, &node, ActionType::Update, "Status (DR)", move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
             update_status(
                 &client,
                 &node,
@@ -1291,7 +1291,7 @@ pub(crate) fn apply_stellar_node(
 
         if node.spec.suspended {
             info!("Node {}/{} is suspended, scaling to 0", namespace, name);
-            apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Suspended)", clones: [propagated_labels], move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Suspended)", clones: [propagated_labels], move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                     update_suspended_status(&client, &node).await?;
                     Ok(())
                 }
@@ -1307,7 +1307,7 @@ pub(crate) fn apply_stellar_node(
             ActionType::Update,
             "mTLS certificates",
             clones: [namespace],
-            move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                 mtls::ensure_ca(&client, &namespace).await?;
                 mtls::ensure_node_cert(&client, &node).await?;
                 // If cert-manager is configured, also create the Certificate CR so
@@ -1708,7 +1708,7 @@ pub(crate) fn apply_stellar_node(
             &node,
             ActionType::Update,
             "MetalLB configuration",
-            move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                 // TODO: Load balancer and global discovery fields not yet implemented in StellarNodeSpec
                 // resources::ensure_metallb_config(&client, &node).await?;
                 // resources::ensure_load_balancer_service(&client, &node).await?;
@@ -1865,7 +1865,7 @@ pub(crate) fn apply_stellar_node(
                     &node,
                     ActionType::Update,
                     "Sync-state resource scaling",
-                    move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                    move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                         sync_scale::reconcile_sync_scaling(&client, &node, scaling_config, &sync_state)
                             .await?;
                         Ok(())
@@ -1876,7 +1876,7 @@ pub(crate) fn apply_stellar_node(
         }
 
         if let Some(cve_config) = &node.spec.cve_handling {
-            apply_or_emit!(&ctx, &node, ActionType::Update, "CVE Handling", move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            apply_or_emit!(&ctx, &node, ActionType::Update, "CVE Handling", move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                 cve_reconciler::reconcile_cve_patches(&client, &node, cve_config).await?;
                 Ok(())
             })
@@ -1887,7 +1887,7 @@ pub(crate) fn apply_stellar_node(
         if node.spec.node_type == NodeType::Validator {
             if let Some(pruning_policy) = &node.spec.pruning_policy {
                 if pruning_policy.enabled {
-                    apply_or_emit!(&ctx, &node, ActionType::Update, "Archive Pruning", clones: [namespace, name], move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                    apply_or_emit!(&ctx, &node, ActionType::Update, "Archive Pruning", clones: [namespace, name], move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                         match super::pruning_reconciler::reconcile_pruning(&client, &node).await {
                             Ok(Some(result)) => {
                                 info!(
@@ -2003,7 +2003,7 @@ pub(crate) fn apply_stellar_node(
                 &node,
                 ActionType::Update,
                 "Status (DR)",
-                move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                     update_dr_status(&client, &node, dr_status).await?;
                     Ok(())
                 }
@@ -2067,7 +2067,7 @@ pub(crate) fn apply_stellar_node(
                         &node,
                         ActionType::Update,
                         "Status (Cross-Cloud Failover)",
-                        move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                        move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                             update_cross_cloud_failover_status(&client, &node, cc_status).await?;
                             Ok(())
                         }
@@ -2124,7 +2124,7 @@ pub(crate) fn apply_stellar_node(
                     &node,
                     ActionType::Update,
                     "Remediation State",
-                    move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                    move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                         remediation::update_remediation_state(
                             &client,
                             &node,
@@ -2173,7 +2173,7 @@ pub(crate) fn apply_stellar_node(
             ("Ready", "Node is healthy and synced".to_string())
         };
 
-        apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Final)", clones: [health_result, message], move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+        apply_or_emit!(&ctx, &node, ActionType::Update, "Status (Final)", clones: [health_result, message], move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
             update_status_with_health(&client, &node, phase, Some(message.clone()), health_result.clone()).await?;
 
             let ready_replicas = get_ready_replicas(&client, &node).await.unwrap_or(0);
@@ -2316,7 +2316,7 @@ pub(crate) fn apply_stellar_node(
                 &node,
                 ActionType::Update,
                 "Service Mesh (Istio/Linkerd)",
-                move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+                move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                     service_mesh::ensure_peer_authentication(&client, &node).await?;
                     service_mesh::ensure_destination_rule(&client, &node).await?;
                     service_mesh::ensure_virtual_service(&client, &node).await?;
@@ -2411,7 +2411,7 @@ pub(crate) fn cleanup_stellar_node(
         .await?;
 
         // 0b. Delete VPA (if vpaConfig was configured)
-        apply_or_emit!(&ctx, &node, ActionType::Delete, "VPA", move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+        apply_or_emit!(&ctx, &node, ActionType::Delete, "VPA", move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
             if let Err(e) = vpa_controller::delete_vpa(&client, &node).await {
                 warn!("Failed to delete VPA: {:?}", e);
             }
@@ -2429,7 +2429,7 @@ pub(crate) fn cleanup_stellar_node(
         .await?;
 
         // 2. Delete ServiceMonitor (if autoscaling was configured)
-        apply_or_emit!(&ctx, &node, ActionType::Delete, "ServiceMonitor", move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+        apply_or_emit!(&ctx, &node, ActionType::Delete, "ServiceMonitor", move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
             if let Err(e) = resources::delete_service_monitor(&client, &node).await {
                 warn!("Failed to delete ServiceMonitor: {:?}", e);
             }
@@ -2461,7 +2461,7 @@ pub(crate) fn cleanup_stellar_node(
             &node,
             ActionType::Delete,
             "MetalLB LoadBalancer",
-            move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+            move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
                 if let Err(e) = resources::delete_load_balancer_service(&client, &node).await {
                     warn!("Failed to delete MetalLB LoadBalancer service: {:?}", e);
                 }
@@ -2474,7 +2474,7 @@ pub(crate) fn cleanup_stellar_node(
         .await?;
 
         // 3c. Delete Service Mesh Resources (Istio/Linkerd)
-        apply_or_emit!(&ctx, &node, ActionType::Delete, "Service Mesh", move |client: Client, ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
+        apply_or_emit!(&ctx, &node, ActionType::Delete, "Service Mesh", move |client: Client, _ctx: Arc<ControllerState>, node: Arc<StellarNode>| async move {
             if let Err(e) = service_mesh::delete_service_mesh_resources(&client, &node).await {
                 warn!("Failed to delete service mesh resources: {:?}", e);
             }
